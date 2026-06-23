@@ -1,0 +1,50 @@
+---
+description: AFDP — Architecture-First Development Protocol; REUSE > EXTEND > REFACTOR > CREATE; analyze before code, audit after
+alwaysApply: true
+---
+
+# Architecture-First Development Protocol (AFDP)
+
+**Codebase maintainers, not local optimizers. Code prohibited until checklist complete.**
+
+Full protocol: `docs/architecture-first-development.md`
+
+## Priority
+
+```text
+REUSE  >  EXTEND  >  REFACTOR  >  CREATE
+```
+
+Search codebase first. CREATE requires Phase 3 written proof.
+
+## Decision tree
+
+Exists as-is? → **REUSE** · Else extend? → **EXTEND** · Else merge/refactor? → **REFACTOR** · Else → **CREATE**
+
+## Pre-implementation (Phases 1–8, then code)
+
+1. **Discover** — six-layer lens (UI·App·API·Data·Infra·Deps) + list components/APIs/collections  
+2. **Fit** — reuse unchanged? extend? refactor? (existing systems first)  
+3. **Justify** — CREATE only: why extension/refactor failed  
+4. **Upstream** — who consumes; what breaks  
+5. **Downstream** — future dependents; 6-month viability  
+6. **SSOT** — one owner per field (see AFDP table)  
+7. **Telemetry** — if any: already collected? actionable consumer?  
+8. **Plan** — reuse/extensions/new/remove + change set + why lowest complexity → **code**
+
+Trivial typos/formatting exempt.
+
+## Post-implementation (required)
+
+Files modified · **removed** · dead code removed · dupes eliminated · architectural outcome  
+Run: `fallow dupes` + `fallow dead-code --changed-since main` — never leave two active implementations.
+
+## Prohibited
+
+Duplicate anything · parallel APIs · SSOT violations · logic in bot/extension · unused telemetry · old+new side by side
+
+## SOLO anchors
+
+Backend orchestrates · bot thin · extension executes · `dispatch_states` / `dispatch_plans` · vault · analytics engine · `packages/shared`
+
+## Success = simpler codebase, not more lines

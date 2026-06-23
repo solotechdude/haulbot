@@ -1,0 +1,41 @@
+---
+description: UI components, styling, and design system — no duplicates
+globs: "apps/website/**/*.{tsx,css}"
+alwaysApply: false
+---
+
+# UI & Components
+
+Follow `docs/website-design.md` for visual tone.
+
+## One design system
+
+- **Single component home**: `apps/website/src/components/ui/` for primitives; `components/` for composed features
+- **No duplicate components** — one `Button`, one `Input`, one `Badge`; extend via props, not `ButtonPrimary` / `Button2`
+- **Design tokens in one file**: `styles/tokens.css` or Tailwind theme extension — no hardcoded hex scattered in components
+
+## Styling rules
+
+- Minimal palette, high-contrast typography, generous whitespace (marketing/solo)
+- Borders over shadows; radius 12–20px; no glassmorphism or decorative animation
+- Admin (`/admin/*`) may be denser; same tokens and primitives as marketing
+
+## Route surfaces
+
+| Route | UX |
+|---|---|
+| `/` | Content-first marketing |
+| `/solo/*` | One task per screen; large tap targets |
+| `/admin/*` | Functional tables, status badges, detail drawer |
+
+## Component checklist (before adding new)
+
+1. Does a primitive already exist in `components/ui`?
+2. Can an existing component take a `variant` prop instead?
+3. Is this logic-only? Use a hook in `hooks/` — not a wrapper component
+
+## Avoid
+
+- Feature-card grids on marketing unless content-driven
+- Dispatch controls on web (campaign editor, load board)
+- Inline styles except truly one-off layout tweaks

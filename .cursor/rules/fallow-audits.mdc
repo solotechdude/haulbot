@@ -1,0 +1,37 @@
+---
+description: Fallow code health audits — duplication, dead code, boundaries, complexity
+alwaysApply: true
+---
+
+# Fallow Quality Audits
+
+Run [Fallow](https://docs.fallow.tools) before merging significant work. Static analysis is free; use it as the quality gate.
+
+## When to run
+
+| Trigger | Command |
+|---|---|
+| **Before merge / after coding** | `fallow dupes --format json --quiet \|\| true` |
+| Before PR / commit | `fallow audit --base main --format json --quiet \|\| true` |
+| Changed files only | `fallow dead-code --changed-since main --format json --quiet \|\| true` |
+
+Post-coding: duplication eliminated and dead code removed are **required deliverables** per AFDP (`docs/architecture-first-development.md`).
+
+Always append `|| true` — exit 1 means issues found, not crash.
+
+## Fix before merge
+
+- **Duplicate code clones** — extract shared module to `packages/shared` or `components/ui`
+- **Unused exports/files** — remove or `fallow fix --dry-run` then `--yes`
+- **Boundary violations** — respect monorepo zones (see `.fallowrc.json`)
+- **Complexity hotspots** — split functions > cyclomatic 15 before adding features
+
+## Agent workflow
+
+1. `fallow dupes --format json --quiet || true` — zero tolerance for copy-paste components
+2. `fallow audit --base main --gate new-only --format json --quiet || true` — no new dead code in PR
+3. Consolidate duplicates before creating a third similar file
+
+## Suppression
+
+Use sparingly: `// fallow-ignore-next-line` with a reason comment. Prefer fixing the root cause.

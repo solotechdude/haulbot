@@ -1,0 +1,38 @@
+---
+description: TypeScript and Bun conventions for backend, bot, website, shared
+globs: "**/*.{ts,tsx}"
+alwaysApply: false
+---
+
+# TypeScript Standards
+
+## Runtime and layout
+
+- **Bun** for backend, bot, website, and tooling
+- Shared contracts live in `packages/shared` — API types, dispatch shapes, telemetry interface
+- Apps import from `@relaybooking/shared` (or project alias); never copy-paste types across apps
+
+## Clean code
+
+```typescript
+// ❌ Duplicate handler logic in bot and backend
+// ✅ Single orchestration function in backend; bot calls HTTP API
+
+// ❌ any for dispatch_state payloads
+// ✅ Export DispatchState, ActiveLeg from packages/shared
+```
+
+- Prefer explicit return types on public API and shared exports
+- Fail closed on auth, entitlements, and incomplete onboarding
+- Errors: typed errors or structured `{ code, message }` — never swallow catches
+
+## Imports
+
+- No circular dependencies — `fallow dead-code --circular-deps` must stay clean
+- Backend must not import from `apps/website` or `apps/bot`
+- Website/bot must not import backend internals — use HTTP client + shared types
+
+## Tests
+
+- Test behavior that can regress (onboarding resolver, handoff state transitions, Hard Rules eval)
+- Skip trivial "renders without crash" tests

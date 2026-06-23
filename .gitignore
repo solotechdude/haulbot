@@ -1,0 +1,13 @@
+node_modules/
+dist/
+.env
+.env.local
+.env.*.local
+.bun/
+.fallow/
+*.log
+.DS_Store
+.idea/
+.vscode/
+coverage/
+.turbo/

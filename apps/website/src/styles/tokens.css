@@ -1,0 +1,16 @@
+:root {
+  --color-bg: #fafafa;
+  --color-surface: #ffffff;
+  --color-text: #0a0a0a;
+  --color-muted: #525252;
+  --color-border: #e5e5e5;
+  --color-accent: #171717;
+  --radius: 14px;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 1rem;
+  --space-4: 1.5rem;
+  --space-5: 2.5rem;
+  --space-6: 4rem;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, sans-serif;
+}

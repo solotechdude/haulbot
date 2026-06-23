@@ -1,0 +1,36 @@
+---
+description: Monorepo import boundaries — apps stay isolated, shared is the bridge
+globs: "apps/**/*.{ts,tsx}"
+alwaysApply: false
+---
+
+# Monorepo Boundaries
+
+```
+apps/website  ──┐
+apps/backend  ──┼──→  packages/shared  ←── types, API contracts, constants
+apps/bot      ──┘
+
+relaybooking-extension/  (separate repo — never imported by apps)
+```
+
+## Allowed
+
+- Any app → `packages/shared`
+- Backend → MongoDB, vault, analytics engine clients
+- Website → backend via BFF `/api/v1/*` fetch only
+- Bot → backend via service token HTTP only
+
+## Forbidden
+
+- `apps/website` importing `apps/backend/src/**`
+- `apps/bot` importing backend repositories or DB clients directly
+- Duplicating shared types in two apps — add to `packages/shared`
+- Business logic in bot or extension that belongs in backend orchestration
+
+## Extension repo
+
+- Polls backend API; emits Load Telemetry via standard interface
+- No Telegram, no Stripe, no MongoDB driver in extension code
+
+Violations are caught by `fallow` boundary rules in `.fallowrc.json`.

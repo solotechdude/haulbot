@@ -1,0 +1,21 @@
+{
+  "name": "relaybooking-solo",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:backend": "bun run --filter @relaybooking/backend dev",
+    "dev:website": "bun run --filter @relaybooking/website dev",
+    "dev:bot": "bun run --filter @relaybooking/bot dev",
+    "dev": "bun run dev:backend & bun run dev:website",
+    "seed:dev": "bun run scripts/seed-dev-user.ts",
+    "typecheck": "bun run --filter '*' typecheck",
+    "audit:fallow": "fallow audit --base main --gate new-only --format json --quiet || true"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.2.2",
+    "typescript": "^5.7.3"
+  }
+}

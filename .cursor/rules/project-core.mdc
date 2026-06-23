@@ -1,0 +1,41 @@
+---
+description: Core project principles — architecture, scope, clean minimal code
+alwaysApply: true
+---
+
+# RelayBooking SOLO — Core Rules
+
+## Source of truth
+
+- Domain language: `CONTEXT.md` (glossary only — not implementation)
+- Architecture: `docs/architecture.md`
+- Data model: `docs/data-model.md`
+- UI: `docs/website-design.md`
+
+## Architecture (non-negotiable)
+
+- **Backend orchestrates** — state, handoff, strategy, analytics queries
+- **Telegram bot is thin UI** — render + forward taps; no business logic
+- **Extension is executor** — DOM, book+assign, telemetry, poll `dispatch_states`
+
+## Code philosophy
+
+- **Minimal** — smallest correct diff; one concern per change
+- **No over-engineering** — no abstractions for one use; no queues/event stores beyond docs
+- **No under-engineering** — Booking Completion = book + assign + notify; don't skip assign
+- **Extend before create** — reuse `packages/shared` types and existing components
+- **No duplicates** — if it exists twice, consolidate; run `fallow dupes` before merging
+
+## Scope discipline
+
+- Drivers dispatch in **Telegram only** — not `/solo` web
+- `/solo` = billing + Telegram link only
+- `/admin` = Product Admin ops only — no fleet admin role
+- Post-book Relay ops = driver's job when stopped
+
+## Before finishing work
+
+1. Match surrounding naming, types, and patterns
+2. No secrets in code, logs, or MongoDB plaintext
+3. Comments only for non-obvious business rules
+4. **AFDP** completed for any non-trivial change — see `architecture-first-development.mdc`
