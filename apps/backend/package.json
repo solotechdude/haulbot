@@ -12,6 +12,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@aws-sdk/client-workspaces-web": "^3.1078.0",
     "@relaybooking/shared": "workspace:*",
     "hono": "^4.7.2",
     "mongodb": "^6.13.0",

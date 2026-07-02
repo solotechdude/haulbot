@@ -1,6 +1,6 @@
 import type Stripe from "stripe";
 import { getDb } from "../db";
-import { provisionDedicatedEnvironment } from "../provisioning";
+import { deprovisionEnvironment, provisionDedicatedEnvironment } from "../provisioning";
 
 function mapStripeStatus(status: Stripe.Subscription.Status): string {
   if (status === "active" || status === "trialing") return "active";
@@ -39,8 +39,11 @@ export async function upsertSubscriptionFromStripe(subscription: Stripe.Subscrip
     { upsert: true },
   );
 
-  if (mapStripeStatus(subscription.status) === "active") {
+  const status = mapStripeStatus(subscription.status);
+  if (status === "active") {
     await provisionDedicatedEnvironment(userId);
+  } else if (status === "canceled") {
+    await deprovisionEnvironment(userId);
   }
 }
 
