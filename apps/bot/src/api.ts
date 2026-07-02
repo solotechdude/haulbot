@@ -65,9 +65,11 @@ export interface DispatchStatus {
     pendingAdoption?: { loadId: string } | null;
     agentStatus?: {
       relayWorkState?: string;
-      lastScanSummary?: { scanned: number; booked: boolean; loadId?: string };
+      lastScanSummary?: { scanned: number; booked: boolean; loadId?: string; at?: string };
     } | null;
     relayAccess?: { kind: string; detectedAt: string } | null;
+    watchdogAlert?: { kind: "offline" | "scan_stalled"; at: string } | null;
+    heartbeatAt?: string;
   };
   handoff?: HandoffSummary | null;
 }

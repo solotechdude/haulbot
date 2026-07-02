@@ -75,6 +75,10 @@ export interface DispatchState {
   refreshPolicy?: import("./refresh-policy.js").RefreshPolicy;
   /** Set while Relay blocks the agent (permissions, login, 2FA) — extension defers scanning */
   relayAccess?: import("./relay-access.js").RelayAccessIssue | null;
+  /** When the current leg was armed — watchdog anchor for "armed but never scanned" */
+  armedAt?: string;
+  /** Unresolved agent-health alert raised by the backend watchdog */
+  watchdogAlert?: { kind: "offline" | "scan_stalled"; at: string } | null;
   heartbeatAt?: string;
   updatedAt: string;
 }

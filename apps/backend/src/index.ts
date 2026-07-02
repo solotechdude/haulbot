@@ -3,6 +3,7 @@ import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 import { startMorningBriefingLoop } from "./briefing";
 import { ensureIndexes } from "./db";
+import { startAgentWatchdog } from "./watchdog";
 import { rateLimit } from "./middleware/rate-limit";
 import { adminRoutes } from "./routes/admin";
 import { authRoutes } from "./routes/auth";
@@ -53,6 +54,7 @@ await ensureIndexes().catch((err) => {
 });
 
 startMorningBriefingLoop();
+startAgentWatchdog();
 
 console.log(`[backend] listening on :${port}`);
 

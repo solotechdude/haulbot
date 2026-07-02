@@ -1,11 +1,20 @@
 /**
  * Smart refresh strategy for the extension's load board polling.
  *
- * Amazon Relay's built-in refresh runs every 15–30s and stops when the tab
- * loses focus. The extension refreshes on its own timer driven by this
- * policy, which rides the dispatch_states hot path so no extra poll channel
- * is needed. The backend tunes it from Market Intelligence (lane posting
- * windows) and extension-reported 429/503 rates.
+ * MECHANISM (extension side): refreshes happen on relay.amazon.com/loadboard/search
+ * by triggering Amazon Relay's own built-in refresh control — the same action
+ * a dispatcher clicking the refresh button performs — NOT by re-navigating or
+ * issuing raw API calls Relay never sees from real users. Relay's automatic
+ * refresh runs every 15–30s and pauses when the tab loses focus/visibility,
+ * so the extension must (a) keep the page in a visible/focused state inside
+ * the Dedicated Environment, and (b) drive the refresh on its own timer at
+ * the cadence below instead of waiting on Relay's timer.
+ *
+ * CADENCE (this policy): rides the dispatch_states hot path so no extra poll
+ * channel is needed. The backend tunes it from Market Intelligence (lane
+ * posting windows → hotWindows) and extension-reported 429/503 rates, so the
+ * agent sees fresh loads before other dispatchers without tripping Relay's
+ * rate limits.
  */
 
 /** Analytics-predicted posting window — refresh faster while inside it. */

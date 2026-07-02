@@ -520,12 +520,21 @@ export function registerDispatchHandlers(bot: Bot): void {
       leg?.readinessWindow && new Date(leg.readinessWindow).getTime() > Date.now()
         ? `\nPickup ready: ${formatReadiness(leg.readinessWindow)}`
         : "";
+    // Honest extension line — "armed" alone is a lie when nothing is scanning
+    const heartbeatFresh =
+      dispatch.heartbeatAt && Date.now() - new Date(dispatch.heartbeatAt).getTime() < 2 * 60 * 1000;
     const armLine = leg
-      ? dispatch.campaignSessionId
-        ? "\nExtension: armed"
-        : commitment
-          ? "\nExtension: queued — /complete current trip to arm"
-          : "\nExtension: not armed — /campaign → Book now"
+      ? dispatch.relayAccess
+        ? "\nExtension: BLOCKED — Relay access issue, not searching"
+        : dispatch.watchdogAlert?.kind === "offline" || (dispatch.campaignSessionId && !heartbeatFresh)
+          ? "\nExtension: OFFLINE — not searching (no recent check-in)"
+          : dispatch.watchdogAlert?.kind === "scan_stalled"
+            ? "\nExtension: STALLED — armed but no scans completing, check Relay access"
+            : dispatch.campaignSessionId
+              ? "\nExtension: armed and searching"
+              : commitment
+                ? "\nExtension: queued — /complete current trip to arm"
+                : "\nExtension: not armed — /campaign → Book now"
       : "";
     const accessLine = dispatch.relayAccess
       ? `\nRelay access: ${RELAY_ACCESS_STATUS[dispatch.relayAccess.kind] ?? `blocked (${dispatch.relayAccess.kind})`}`

@@ -37,6 +37,8 @@ export async function armActiveLeg(
   state.activeLeg = activeLeg;
   state.campaignSessionId = crypto.randomUUID();
   state.paused = false;
+  state.armedAt = now;
+  state.watchdogAlert = null;
   state.updatedAt = now;
 
   // Market Intelligence → refresh hot windows for this lane (best effort)
