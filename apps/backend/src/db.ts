@@ -7,7 +7,16 @@ let client: import("mongodb").MongoClient | null = null;
 export async function getDb() {
   const { MongoClient } = await import("mongodb");
   if (!client) {
-    client = new MongoClient(uri);
+    // Long-running server, short OLTP ops; hot path is one poll per driver
+    // every 5–60s, so a small pre-warmed pool covers a solo-scale fleet.
+    client = new MongoClient(uri, {
+      maxPoolSize: 20,
+      minPoolSize: 2,
+      maxIdleTimeMS: 5 * 60 * 1000,
+      connectTimeoutMS: 10_000,
+      socketTimeoutMS: 30_000,
+      serverSelectionTimeoutMS: 5_000,
+    });
     await client.connect();
   }
   return client.db();
