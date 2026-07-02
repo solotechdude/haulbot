@@ -1,0 +1,133 @@
+.admin-login {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.admin-login__input {
+  flex: 1;
+  max-width: 20rem;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  font: inherit;
+}
+
+.admin-error {
+  color: #b91c1c;
+  margin: var(--space-3) 0 0;
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.admin-table th {
+  text-align: left;
+  color: var(--color-muted);
+  font-weight: 500;
+  padding: var(--space-1) var(--space-2);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.admin-table td {
+  padding: var(--space-2);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.admin-table tbody tr {
+  cursor: pointer;
+}
+
+.admin-table tbody tr:hover {
+  background: var(--color-bg);
+}
+
+.admin-table__row--active {
+  background: var(--color-bg);
+}
+
+.admin-badge {
+  display: inline-block;
+  padding: 0 var(--space-2);
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+.admin-badge--online {
+  border-color: #a7f3d0;
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.admin-badge--stale {
+  border-color: #fde68a;
+  background: #fffbeb;
+  color: #92400e;
+}
+
+.admin-badge--offline {
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.admin-badge--paused {
+  color: var(--color-muted);
+}
+
+.admin-detail {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-4);
+  align-items: flex-start;
+}
+
+.admin-detail__facts {
+  display: grid;
+  grid-template-columns: 9rem 1fr;
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+  font-size: 0.875rem;
+}
+
+.admin-detail__facts dt {
+  color: var(--color-muted);
+}
+
+.admin-detail__facts dd {
+  margin: 0;
+}
+
+.admin-detail__actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.admin-section {
+  margin: var(--space-4) 0 var(--space-2);
+  font-size: 0.875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-muted);
+}
+
+.admin-list {
+  margin: 0;
+  padding-left: var(--space-4);
+  font-size: 0.875rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.admin-empty {
+  color: var(--color-muted);
+  font-size: 0.875rem;
+  margin: 0;
+}

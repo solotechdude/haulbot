@@ -46,6 +46,18 @@ export function requireExtensionAuth() {
   };
 }
 
+/** Product Admin → backend. Fails closed when ADMIN_TOKEN is unset. */
+export function requireAdminToken() {
+  return async (c: Context, next: Next) => {
+    const expected = process.env.ADMIN_TOKEN;
+    const token = c.req.header("x-admin-token");
+    if (!expected || token !== expected) {
+      return c.json({ error: "UNAUTHORIZED" }, 401);
+    }
+    await next();
+  };
+}
+
 /**
  * Website → backend. Requires Authorization: Bearer <session token> issued
  * by the magic-link exchange. Outside production a bare x-user-id header is

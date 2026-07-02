@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { startMorningBriefingLoop } from "./briefing";
 import { ensureIndexes } from "./db";
+import { adminRoutes } from "./routes/admin";
 import { authRoutes } from "./routes/auth";
 import { botDispatchRoutes } from "./routes/bot-dispatch";
 import { botRoutes } from "./routes/bot";
@@ -23,6 +24,7 @@ app.route("/v1/onboarding", onboardingRoutes);
 app.route("/v1/bot", botRoutes);
 app.route("/v1/bot/dispatch", botDispatchRoutes);
 app.route("/v1/dispatcher", dispatcherRoutes);
+app.route("/v1/admin", adminRoutes);
 
 const port = Number(process.env.PORT ?? 8080);
 
