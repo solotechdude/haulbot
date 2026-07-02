@@ -48,8 +48,10 @@ telemetry/    audit, alerts, onboarding       — write-heavy, TTL
 | `relay_alerts` | Cancel, schedule change | 90 days |
 | `environment_events` | Onboarding timeline | long |
 | `booking_completions` | Book + assign outcomes | long |
+| `load_telemetry` | Local copy of Load Telemetry events (engine is the long-term store) | 30 days (TTL index) |
+| `board_health` | Extension-observed 429/503 rates for refresh tuning | 7 days (TTL index) |
 
-Load Telemetry to the analytics engine is emitted via the standard extension interface — not duplicated in MongoDB.
+Load Telemetry flows to the analytics engine via the standard extension interface (`POST /v1/dispatcher/telemetry` → forward); the local copies above are debugging/ops caches only.
 
 ## Document shapes
 

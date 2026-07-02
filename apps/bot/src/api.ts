@@ -8,18 +8,75 @@ function headers(): HeadersInit {
   };
 }
 
+async function get<T>(path: string, label: string): Promise<T> {
+  const res = await fetch(`${apiOrigin}${path}`, { headers: headers() });
+  if (!res.ok) throw new Error(`${label} failed: ${res.status}`);
+  return res.json() as Promise<T>;
+}
+
+async function post<T>(path: string, body: unknown, label: string): Promise<T> {
+  const res = await fetch(`${apiOrigin}${path}`, {
+    method: "POST",
+    headers: headers(),
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`${label} failed: ${res.status}`);
+  return res.json() as Promise<T>;
+}
+
+/** POST that surfaces 409 COMMITMENT_ACTIVE as a typed error */
+async function postDispatch<T>(path: string, body: unknown, label: string): Promise<T> {
+  const res = await fetch(`${apiOrigin}${path}`, {
+    method: "POST",
+    headers: headers(),
+    body: JSON.stringify(body),
+  });
+  if (res.status === 409) {
+    const data = (await res.json()) as { commitment?: { loadId: string } };
+    throw new Error(`COMMITMENT_ACTIVE:${data.commitment?.loadId ?? "unknown"}`);
+  }
+  if (res.status === 422) throw new Error("NEED_ORIGIN");
+  if (!res.ok) throw new Error(`${label} failed: ${res.status}`);
+  return res.json() as Promise<T>;
+}
+
+export interface ActiveLegSummary {
+  mode: string;
+  searchCriteria: { origin?: string; destination?: string };
+  hardRules: { minRate?: number; minPayout?: number };
+  readinessWindow?: string;
+}
+
+export interface HandoffSummary {
+  deliveryCity: string;
+  draftNextLeg: {
+    searchCriteria: { origin?: string; destination?: string; minRate?: number; minPayout?: number };
+    hardRules: { minRate?: number; minPayout?: number };
+  };
+}
+
+export interface DispatchStatus {
+  profile: { onboardingStep: string };
+  dispatch: {
+    paused: boolean;
+    activeLeg: ActiveLegSummary | null;
+    commitment: { loadId: string; origin?: string; destination?: string; status?: string } | null;
+    campaignSessionId?: string | null;
+    pendingAdoption?: { loadId: string } | null;
+    agentStatus?: {
+      relayWorkState?: string;
+      lastScanSummary?: { scanned: number; booked: boolean; loadId?: string };
+    } | null;
+  };
+  handoff?: HandoffSummary | null;
+}
+
 export async function linkTelegram(input: {
   token: string;
   telegramChatId: string;
   telegramUsername?: string;
 }): Promise<{ userId: string }> {
-  const res = await fetch(`${apiOrigin}/v1/bot/telegram/link`, {
-    method: "POST",
-    headers: headers(),
-    body: JSON.stringify(input),
-  });
-  if (!res.ok) throw new Error(`link failed: ${res.status}`);
-  return res.json() as Promise<{ ok: true; userId: string }>;
+  return post("/v1/bot/telegram/link", input, "link");
 }
 
 export async function getUserIdByChat(chatId: string): Promise<string | null> {
@@ -37,22 +94,11 @@ export async function storeRelayCredentials(
   email: string,
   password: string,
 ): Promise<{ require2fa: boolean }> {
-  const res = await fetch(`${apiOrigin}/v1/bot/relay/credentials`, {
-    method: "POST",
-    headers: headers(),
-    body: JSON.stringify({ userId, email, password }),
-  });
-  if (!res.ok) throw new Error(`credentials failed: ${res.status}`);
-  return res.json() as Promise<{ ok: true; require2fa: boolean }>;
+  return post("/v1/bot/relay/credentials", { userId, email, password }, "credentials");
 }
 
 export async function storeRelay2fa(userId: string, code: string): Promise<void> {
-  const res = await fetch(`${apiOrigin}/v1/bot/relay/2fa`, {
-    method: "POST",
-    headers: headers(),
-    body: JSON.stringify({ userId, code }),
-  });
-  if (!res.ok) throw new Error(`2fa failed: ${res.status}`);
+  await post("/v1/bot/relay/2fa", { userId, code }, "2fa");
 }
 
 export async function checkBackendHealth(): Promise<void> {
@@ -71,26 +117,12 @@ export async function setCampaign(
     readinessWindow?: string;
     clearCommitment?: boolean;
   },
-): Promise<{ activeLeg: { mode: string; searchCriteria: Record<string, unknown>; hardRules: Record<string, unknown>; readinessWindow?: string } }> {
-  const res = await fetch(`${apiOrigin}/v1/bot/dispatch/campaign`, {
-    method: "POST",
-    headers: headers(),
-    body: JSON.stringify({ userId, ...input }),
-  });
-  if (res.status === 409) {
-    const data = (await res.json()) as { commitment?: { loadId: string } };
-    throw new Error(`COMMITMENT_ACTIVE:${data.commitment?.loadId ?? "unknown"}`);
-  }
-  if (!res.ok) throw new Error(`campaign failed: ${res.status}`);
-  return res.json() as Promise<{ ok: true; activeLeg: { mode: string; searchCriteria: Record<string, unknown>; hardRules: Record<string, unknown>; readinessWindow?: string } }>;
+): Promise<{ activeLeg: ActiveLegSummary }> {
+  return postDispatch("/v1/bot/dispatch/campaign", { userId, ...input }, "campaign");
 }
 
 export interface GoalResponse {
-  activeLeg: {
-    mode: string;
-    searchCriteria: { origin?: string; destination?: string };
-    hardRules: { minRate?: number; minPayout?: number };
-  };
+  activeLeg: ActiveLegSummary;
   goal: {
     revenueTarget?: number;
     deadline?: string;
@@ -104,28 +136,15 @@ export async function setGoal(
   text: string,
   origin?: string,
 ): Promise<GoalResponse> {
-  const res = await fetch(`${apiOrigin}/v1/bot/dispatch/goal`, {
-    method: "POST",
-    headers: headers(),
-    body: JSON.stringify({ userId, text, origin }),
-  });
-  if (res.status === 422) throw new Error("NEED_ORIGIN");
-  if (res.status === 409) {
-    const data = (await res.json()) as { commitment?: { loadId: string } };
-    throw new Error(`COMMITMENT_ACTIVE:${data.commitment?.loadId ?? "unknown"}`);
-  }
-  if (!res.ok) throw new Error(`goal failed: ${res.status}`);
-  return res.json() as Promise<GoalResponse>;
+  return postDispatch("/v1/bot/dispatch/goal", { userId, text, origin }, "goal");
 }
 
 export async function completeCommitment(userId: string, loadId?: string): Promise<string> {
-  const res = await fetch(`${apiOrigin}/v1/bot/dispatch/complete`, {
-    method: "POST",
-    headers: headers(),
-    body: JSON.stringify({ userId, loadId }),
-  });
-  if (!res.ok) throw new Error(`complete failed: ${res.status}`);
-  const data = (await res.json()) as { clearedLoadId: string };
+  const data = await post<{ clearedLoadId: string }>(
+    "/v1/bot/dispatch/complete",
+    { userId, loadId },
+    "complete",
+  );
   return data.clearedLoadId;
 }
 
@@ -134,117 +153,45 @@ export async function setCampaignStatusPin(
   telegramChatId: string,
   messageId: number,
 ): Promise<void> {
-  const res = await fetch(`${apiOrigin}/v1/bot/dispatch/campaign-status-pin`, {
-    method: "POST",
-    headers: headers(),
-    body: JSON.stringify({ userId, telegramChatId, messageId }),
-  });
-  if (!res.ok) throw new Error(`campaign-status-pin failed: ${res.status}`);
+  await post(
+    "/v1/bot/dispatch/campaign-status-pin",
+    { userId, telegramChatId, messageId },
+    "campaign-status-pin",
+  );
 }
 
 export async function adoptPendingBooking(userId: string, loadId?: string): Promise<string> {
-  const res = await fetch(`${apiOrigin}/v1/bot/dispatch/adopt`, {
-    method: "POST",
-    headers: headers(),
-    body: JSON.stringify({ userId, loadId }),
-  });
-  if (!res.ok) throw new Error(`adopt failed: ${res.status}`);
-  const data = (await res.json()) as { loadId: string };
+  const data = await post<{ loadId: string }>("/v1/bot/dispatch/adopt", { userId, loadId }, "adopt");
   return data.loadId;
 }
 
 export async function dismissPendingAdoption(userId: string): Promise<void> {
-  const res = await fetch(`${apiOrigin}/v1/bot/dispatch/dismiss-adoption`, {
-    method: "POST",
-    headers: headers(),
-    body: JSON.stringify({ userId }),
-  });
-  if (!res.ok) throw new Error(`dismiss failed: ${res.status}`);
+  await post("/v1/bot/dispatch/dismiss-adoption", { userId }, "dismiss");
 }
 
-export async function completeHandoff(userId: string, readinessWindow: string) {
-  const res = await fetch(`${apiOrigin}/v1/bot/dispatch/handoff/complete`, {
-    method: "POST",
-    headers: headers(),
-    body: JSON.stringify({ userId, readinessWindow }),
-  });
-  if (!res.ok) throw new Error(`handoff failed: ${res.status}`);
-  return res.json() as Promise<{
-    ok: true;
-    activeLeg: {
-      mode: string;
-      searchCriteria: { origin?: string; destination?: string };
-      hardRules: { minRate?: number; minPayout?: number };
-      readinessWindow?: string;
-    };
-    readinessWindow: string;
-  }>;
+export async function completeHandoff(
+  userId: string,
+  readinessWindow: string,
+): Promise<{ activeLeg: ActiveLegSummary; readinessWindow: string }> {
+  return post("/v1/bot/dispatch/handoff/complete", { userId, readinessWindow }, "handoff");
 }
 
 export async function dismissHandoff(userId: string): Promise<void> {
-  const res = await fetch(`${apiOrigin}/v1/bot/dispatch/handoff/dismiss`, {
-    method: "POST",
-    headers: headers(),
-    body: JSON.stringify({ userId }),
-  });
-  if (!res.ok) throw new Error(`handoff dismiss failed: ${res.status}`);
+  await post("/v1/bot/dispatch/handoff/dismiss", { userId }, "handoff dismiss");
 }
 
 export async function updateHandoffDraft(
   userId: string,
   input: { origin?: string; destination?: string; minRate?: number; minPayout?: number },
-) {
-  const res = await fetch(`${apiOrigin}/v1/bot/dispatch/handoff/draft`, {
-    method: "POST",
-    headers: headers(),
-    body: JSON.stringify({ userId, ...input }),
-  });
-  if (!res.ok) throw new Error(`handoff draft failed: ${res.status}`);
-  return res.json() as Promise<{
-    ok: true;
-    handoff: {
-      deliveryCity: string;
-      draftNextLeg: {
-        searchCriteria: { origin?: string; destination?: string; minRate?: number; minPayout?: number };
-        hardRules: { minRate?: number; minPayout?: number };
-      };
-    };
-  }>;
+): Promise<{ handoff: HandoffSummary }> {
+  return post("/v1/bot/dispatch/handoff/draft", { userId, ...input }, "handoff draft");
 }
 
-export async function getDispatchStatus(userId: string) {
-  const res = await fetch(`${apiOrigin}/v1/bot/dispatch/status/${encodeURIComponent(userId)}`, {
-    headers: headers(),
-  });
-  if (!res.ok) throw new Error(`status failed: ${res.status}`);
-  return res.json() as Promise<{
-    profile: { onboardingStep: string };
-    dispatch: {
-      paused: boolean;
-      activeLeg: {
-        mode: string;
-        searchCriteria: { origin?: string; destination?: string };
-        readinessWindow?: string;
-      } | null;
-      commitment: { loadId: string; origin?: string; destination?: string; status?: string } | null;
-      campaignSessionId?: string | null;
-    };
-    handoff?: {
-      deliveryCity: string;
-      draftNextLeg: {
-        searchCriteria: { origin?: string; destination?: string; minRate?: number; minPayout?: number };
-        hardRules: { minRate?: number; minPayout?: number };
-      };
-    } | null;
-  }>;
+export async function getDispatchStatus(userId: string): Promise<DispatchStatus> {
+  return get(`/v1/bot/dispatch/status/${encodeURIComponent(userId)}`, "status");
 }
 
 export async function setPaused(userId: string, paused: boolean): Promise<void> {
   const path = paused ? "pause" : "resume";
-  const res = await fetch(`${apiOrigin}/v1/bot/dispatch/${path}`, {
-    method: "POST",
-    headers: headers(),
-    body: JSON.stringify({ userId }),
-  });
-  if (!res.ok) throw new Error(`${path} failed: ${res.status}`);
+  await post(`/v1/bot/dispatch/${path}`, { userId }, path);
 }

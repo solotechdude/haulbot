@@ -1,28 +1,11 @@
 import { InlineKeyboard, type Bot } from "grammy";
-import { formatCampaignStatusMessage } from "@relaybooking/shared";
+import { formatCampaignStatusMessage, formatRouteLabel } from "@relaybooking/shared";
 import * as api from "../api";
+import { formatReadiness, readinessFromPreset } from "../format";
+import { requireLinkedCallbackUser, requireLinkedUser } from "../linked-user";
 import { parseReadinessText } from "../parse-readiness";
 import { handoffStatusLine } from "./handoff";
 import { clearCampaignSession, getSession, type CampaignDraft } from "../session";
-
-async function requireLinkedUser(chatId: number | undefined): Promise<string | null> {
-  if (!chatId) return null;
-  try {
-    return await api.getUserIdByChat(String(chatId));
-  } catch {
-    return null;
-  }
-}
-
-function formatReadiness(iso: string): string {
-  return new Date(iso).toLocaleString("en-US", {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
 
 async function activateCampaign(
   chatId: number,
@@ -62,18 +45,11 @@ async function activateCampaign(
   await api.setCampaignStatusPin(userId, String(chatId), pin.message_id);
 
   await reply(
-    `Armed: ${formatRoute(origin, destination)}\n` +
+    `Armed: ${formatRouteLabel(origin, destination)}\n` +
       `Book mins: $${leg.hardRules.minRate}/mi · $${leg.hardRules.minPayout} min payout\n` +
       `Pickup: ${formatReadiness(readinessWindow)}\n` +
       `Status updates in the pinned message above.`,
   );
-}
-
-function formatRoute(origin: string, destination: string): string {
-  if (destination.trim().toUpperCase() === origin.trim().toUpperCase()) {
-    return `${origin} → anywhere`;
-  }
-  return `${origin} → ${destination}`;
 }
 
 function moreFiltersKeyboard(): InlineKeyboard {
@@ -98,7 +74,7 @@ function filtersMenuKeyboard(): InlineKeyboard {
 function formatMustHaves(draft: CampaignDraft): string {
   const radius = draft.radius ?? 50;
   return (
-    `Route: ${formatRoute(draft.origin, draft.destination)}\n` +
+    `Route: ${formatRouteLabel(draft.origin, draft.destination)}\n` +
     `Book mins: $${draft.minRate}/mi · $${draft.minPayout} min payout\n` +
     `Radius: ${radius}mi\n` +
     `Equipment: Tractor + trailer (default)`
@@ -151,24 +127,6 @@ function readinessKeyboard(): InlineKeyboard {
     .text("Cancel", "campaign:cancel");
 }
 
-function readinessFromPreset(preset: string): string {
-  const d = new Date();
-  if (preset === "+1h") {
-    d.setHours(d.getHours() + 1);
-    return d.toISOString();
-  }
-  if (preset === "+3h") {
-    d.setHours(d.getHours() + 3);
-    return d.toISOString();
-  }
-  if (preset === "tomorrow8") {
-    d.setDate(d.getDate() + 1);
-    d.setHours(8, 0, 0, 0);
-    return d.toISOString();
-  }
-  return d.toISOString();
-}
-
 export function registerDispatchHandlers(bot: Bot): void {
   bot.command("help", async (ctx) => {
     await ctx.reply(
@@ -202,7 +160,7 @@ export function registerDispatchHandlers(bot: Bot): void {
         const destination = String(leg.searchCriteria?.destination ?? "?");
         await ctx.reply(
           `Trip ${cleared} marked complete.\n\n` +
-            `Queued leg active: ${formatRoute(origin, destination)}\n` +
+            `Queued leg active: ${formatRouteLabel(origin, destination)}\n` +
             `Pickup ready: ${formatReadiness(leg.readinessWindow!)}\n` +
             `Extension will apply Relay filters ~2 min before pickup, then search and book.`,
         );
@@ -211,7 +169,7 @@ export function registerDispatchHandlers(bot: Bot): void {
         const destination = String(leg.searchCriteria?.destination ?? "?");
         await ctx.reply(
           `Trip ${cleared} marked complete.\n\n` +
-            `Queued leg armed: ${formatRoute(origin, destination)} — extension is searching Relay.`,
+            `Queued leg armed: ${formatRouteLabel(origin, destination)} — extension is searching Relay.`,
         );
       } else {
         await ctx.reply(`Trip ${cleared} marked complete. You can start a new campaign.`);
@@ -256,7 +214,7 @@ export function registerDispatchHandlers(bot: Bot): void {
       delete session.goalText;
 
       const leg = result.activeLeg;
-      const routeLine = formatRoute(
+      const routeLine = formatRouteLabel(
         String(leg.searchCriteria.origin ?? "?"),
         String(leg.searchCriteria.destination ?? leg.searchCriteria.origin ?? "?"),
       );
@@ -372,7 +330,7 @@ export function registerDispatchHandlers(bot: Bot): void {
     if (action === "filter:destination") {
       session.step = "campaign_filter_destination";
       await ctx.reply(
-        `Current: ${formatRoute(draft.origin, draft.destination)}\n\n` +
+        `Current: ${formatRouteLabel(draft.origin, draft.destination)}\n\n` +
           "Reply with a destination city code (e.g. ATL), or send anywhere to search all destinations.",
         { reply_markup: filtersMenuKeyboard() },
       );
@@ -448,21 +406,15 @@ export function registerDispatchHandlers(bot: Bot): void {
         );
         return;
       }
-      const readinessWindow = readinessFromPreset(preset);
+      const readinessWindow = readinessFromPreset(preset) ?? new Date().toISOString();
       await activateCampaign(chatId, (t, extra) => ctx.reply(t, extra), userId, draft, readinessWindow, false);
     }
   });
 
   bot.callbackQuery(/^adopt:/, async (ctx) => {
-    await ctx.answerCallbackQuery();
-    const chatId = ctx.chat?.id;
-    if (!chatId) return;
-
-    const userId = await requireLinkedUser(chatId);
-    if (!userId) {
-      await ctx.reply("Link Telegram first — Connect Telegram on /solo.");
-      return;
-    }
+    const linked = await requireLinkedCallbackUser(ctx);
+    if (!linked) return;
+    const { userId } = linked;
 
     const action = ctx.callbackQuery.data.replace("adopt:", "");
     if (action === "dismiss") {
@@ -500,7 +452,7 @@ export function registerDispatchHandlers(bot: Bot): void {
       draft.destination = dest;
       session.step = "campaign_more_filters";
       await ctx.reply(
-        `Destination updated: ${formatRoute(draft.origin, draft.destination)}\n\nOptional filters:`,
+        `Destination updated: ${formatRouteLabel(draft.origin, draft.destination)}\n\nOptional filters:`,
         { reply_markup: filtersMenuKeyboard() },
       );
       return;
@@ -534,34 +486,49 @@ export function registerDispatchHandlers(bot: Bot): void {
     await activateCampaign(ctx.chat.id, (t, extra) => ctx.reply(t, extra), session.userId, draft, iso, false);
   });
 
+  function formatStatusText(status: api.DispatchStatus): string {
+    const { profile, dispatch, handoff } = status;
+    const leg = dispatch.activeLeg;
+    const legLine = leg
+      ? `${leg.mode}: ${formatRouteLabel(leg.searchCriteria.origin ?? "?", leg.searchCriteria.destination ?? "?")}`
+      : "none";
+    const commitment = dispatch.commitment;
+    const commitmentLine = commitment
+      ? `${commitment.loadId} (${commitment.origin ?? "?"} → ${commitment.destination ?? "?"}) — /complete to clear`
+      : "none";
+    const agent = dispatch.agentStatus;
+    const agentLine = agent?.relayWorkState ? `\nWork state: ${agent.relayWorkState}` : "";
+    const scanLine = agent?.lastScanSummary
+      ? `\nLast scan: ${agent.lastScanSummary.scanned} loads${agent.lastScanSummary.booked ? `, booked ${agent.lastScanSummary.loadId}` : ""}`
+      : "";
+    const pendingLine = dispatch.pendingAdoption
+      ? `\nPending adoption: ${dispatch.pendingAdoption.loadId} (check Telegram buttons)`
+      : "";
+    const readyLine = leg?.readinessWindow
+      ? `\nPickup ready: ${formatReadiness(leg.readinessWindow)}`
+      : "";
+    const armLine = leg
+      ? dispatch.campaignSessionId
+        ? "\nExtension: armed"
+        : commitment
+          ? "\nExtension: queued — /complete current trip to arm"
+          : "\nExtension: not armed — /campaign → Book now"
+      : "";
+
+    return (
+      `Onboarding: ${profile.onboardingStep}\n` +
+      `Paused: ${dispatch.paused ? "yes" : "no"}\n` +
+      `Active leg: ${legLine}${readyLine}\n` +
+      `Commitment: ${commitmentLine}${pendingLine}${agentLine}${scanLine}${handoffStatusLine(handoff)}${armLine}`
+    );
+  }
+
   bot.callbackQuery(/^status:/, async (ctx) => {
-    await ctx.answerCallbackQuery();
-    const userId = await requireLinkedUser(ctx.chat?.id);
-    if (!userId) {
-      await ctx.reply("Link Telegram first — Connect Telegram on /solo.");
-      return;
-    }
+    const linked = await requireLinkedCallbackUser(ctx);
+    if (!linked) return;
+
     try {
-      const { profile, dispatch, handoff } = await api.getDispatchStatus(userId);
-      const leg = dispatch.activeLeg;
-      const legLine = leg
-        ? `${leg.mode}: ${formatRoute(String(leg.searchCriteria?.origin ?? "?"), String(leg.searchCriteria?.destination ?? "?"))}`
-        : "none";
-      const commitment = dispatch.commitment;
-      const commitmentLine = commitment
-        ? `${commitment.loadId} (${commitment.origin ?? "?"} → ${commitment.destination ?? "?"})`
-        : "none";
-      const agent = (dispatch as { agentStatus?: { relayWorkState?: string; lastScanSummary?: { scanned: number; booked: boolean; loadId?: string } } }).agentStatus;
-      const agentLine = agent?.relayWorkState ? `\nWork state: ${agent.relayWorkState}` : "";
-      const scanLine = agent?.lastScanSummary
-        ? `\nLast scan: ${agent.lastScanSummary.scanned} loads${agent.lastScanSummary.booked ? `, booked ${agent.lastScanSummary.loadId}` : ""}`
-        : "";
-      await ctx.reply(
-        `Onboarding: ${profile.onboardingStep}\n` +
-          `Paused: ${dispatch.paused ? "yes" : "no"}\n` +
-          `Active leg: ${legLine}\n` +
-          `Commitment: ${commitmentLine}${agentLine}${scanLine}${handoffStatusLine(handoff)}`,
-      );
+      await ctx.reply(formatStatusText(await api.getDispatchStatus(linked.userId)));
     } catch {
       await ctx.reply("Could not load status.");
     }
@@ -575,35 +542,7 @@ export function registerDispatchHandlers(bot: Bot): void {
     }
 
     try {
-      const { profile, dispatch, handoff } = await api.getDispatchStatus(userId);
-      const leg = dispatch.activeLeg;
-      const legLine = leg
-        ? `${leg.mode}: ${leg.searchCriteria.origin ?? "?"} → ${leg.searchCriteria.destination ?? "?"}`
-        : "none";
-      const commitment = dispatch.commitment;
-      const commitmentLine = commitment
-        ? `${commitment.loadId} (${commitment.origin ?? "?"} → ${commitment.destination ?? "?"}) — /complete to clear`
-        : "none";
-      const pending = (dispatch as { pendingAdoption?: { loadId: string } | null }).pendingAdoption;
-      const pendingLine = pending
-        ? `\nPending adoption: ${pending.loadId} (check Telegram buttons)`
-        : "";
-      const readyLine = leg?.readinessWindow
-        ? `\nPickup ready: ${formatReadiness(leg.readinessWindow)}`
-        : "";
-      const armLine = leg
-        ? (dispatch as { campaignSessionId?: string | null }).campaignSessionId
-          ? "\nExtension: armed for queued leg"
-          : commitment
-            ? "\nExtension: queued — /complete current trip to arm"
-            : "\nExtension: not armed — /campaign → Book now"
-        : "";
-      await ctx.reply(
-        `Onboarding: ${profile.onboardingStep}\n` +
-          `Paused: ${dispatch.paused ? "yes" : "no"}\n` +
-          `Active leg: ${legLine}${readyLine}\n` +
-          `Commitment: ${commitmentLine}${pendingLine}${handoffStatusLine(handoff)}${armLine}`,
-      );
+      await ctx.reply(formatStatusText(await api.getDispatchStatus(userId)));
     } catch {
       await ctx.reply("Could not load status.");
     }

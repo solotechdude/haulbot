@@ -14,7 +14,7 @@ function briefingHourUtc(): number {
   return Number.isFinite(hour) ? hour : 12;
 }
 
-export async function sendMorningBriefings(now: Date = new Date()): Promise<number> {
+async function sendMorningBriefings(now: Date = new Date()): Promise<number> {
   const db = await getDb();
   const today = now.toISOString().slice(0, 10);
 

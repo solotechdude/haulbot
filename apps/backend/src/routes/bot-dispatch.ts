@@ -145,24 +145,26 @@ botDispatchRoutes.post("/dismiss-adoption", async (c) => {
   return c.json({ ok: true });
 });
 
-botDispatchRoutes.post("/pause", async (c) => {
-  const body = await c.req.json<{ userId?: string }>();
-  if (!body.userId) return c.json({ error: "INVALID_REQUEST" }, 400);
-
+async function setPaused(userId: string, paused: boolean): Promise<void> {
   const now = new Date().toISOString();
-  const existing = await getDispatchState(body.userId);
-  const state = existing ?? {
-    userId: body.userId,
-    paused: true,
+  const state = (await getDispatchState(userId)) ?? {
+    userId,
+    paused,
     activeLeg: null,
     commitment: null,
     updatedAt: now,
   };
 
-  state.paused = true;
+  state.paused = paused;
   state.updatedAt = now;
   await upsertDispatchState(state);
+}
 
+botDispatchRoutes.post("/pause", async (c) => {
+  const body = await c.req.json<{ userId?: string }>();
+  if (!body.userId) return c.json({ error: "INVALID_REQUEST" }, 400);
+
+  await setPaused(body.userId, true);
   return c.json({ ok: true, paused: true });
 });
 
@@ -170,20 +172,7 @@ botDispatchRoutes.post("/resume", async (c) => {
   const body = await c.req.json<{ userId?: string }>();
   if (!body.userId) return c.json({ error: "INVALID_REQUEST" }, 400);
 
-  const now = new Date().toISOString();
-  const existing = await getDispatchState(body.userId);
-  const state = existing ?? {
-    userId: body.userId,
-    paused: false,
-    activeLeg: null,
-    commitment: null,
-    updatedAt: now,
-  };
-
-  state.paused = false;
-  state.updatedAt = now;
-  await upsertDispatchState(state);
-
+  await setPaused(body.userId, false);
   return c.json({ ok: true, paused: false });
 });
 
