@@ -10,7 +10,7 @@ import {
 } from "../booking/handoff";
 import { getDispatchState, upsertDispatchState } from "../db";
 import { getDriverProfile } from "../onboarding";
-import { requireServiceToken } from "../middleware/service-token";
+import { requireServiceToken } from "../middleware/auth";
 
 export const botDispatchRoutes = new Hono();
 

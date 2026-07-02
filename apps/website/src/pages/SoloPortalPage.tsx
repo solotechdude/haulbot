@@ -8,6 +8,7 @@ import "./SoloPortalPage.css";
 
 const DEV_USER_ID = "dev-user-1";
 const SESSION_KEY = "relaybooking_user_id";
+const SESSION_TOKEN_KEY = "relaybooking_session_token";
 
 const STEP_LABELS: Record<OnboardingStep, string> = {
   subscribed: "Provisioning your dedicated environment",
@@ -29,8 +30,16 @@ function resolveInitialUserId(): string | null {
 async function verifyToken(token: string): Promise<string> {
   const res = await fetch(`/api/auth/magic-link?token=${encodeURIComponent(token)}`);
   if (!res.ok) throw new Error("Invalid or expired link");
-  const data = (await res.json()) as { userId: string };
+  const data = (await res.json()) as { userId: string; sessionToken?: string };
+  if (data.sessionToken) sessionStorage.setItem(SESSION_TOKEN_KEY, data.sessionToken);
   return data.userId;
+}
+
+/** Bearer session token when present; x-user-id works only against dev backends */
+function authHeaders(userId: string): HeadersInit {
+  const sessionToken = sessionStorage.getItem(SESSION_TOKEN_KEY);
+  if (sessionToken) return { Authorization: `Bearer ${sessionToken}` };
+  return { "x-user-id": userId };
 }
 
 export function SoloPortalPage() {
@@ -45,7 +54,7 @@ export function SoloPortalPage() {
 
   const loadProfile = useCallback(async (id: string) => {
     const res = await fetch("/api/onboarding/status", {
-      headers: { "x-user-id": id },
+      headers: authHeaders(id),
     });
     if (!res.ok) throw new Error(res.status === 404 ? "No account yet" : "Failed to load profile");
     return res.json() as Promise<DriverProfile>;
@@ -91,7 +100,7 @@ export function SoloPortalPage() {
       profile?.onboardingStep === "environment_ready" || profile?.telegramDevStub;
     if (!userId || !needsTelegramLink) return;
 
-    fetch("/api/onboarding/telegram-deeplink", { headers: { "x-user-id": userId } })
+    fetch("/api/onboarding/telegram-deeplink", { headers: authHeaders(userId) })
       .then(async (res) => {
         if (!res.ok) throw new Error("Failed to get Telegram link");
         const data = (await res.json()) as { url: string };
@@ -107,7 +116,7 @@ export function SoloPortalPage() {
     try {
       const res = await fetch("/api/onboarding/telegram-link", {
         method: "POST",
-        headers: { "x-user-id": userId },
+        headers: authHeaders(userId),
       });
       if (!res.ok) throw new Error("Failed to connect Telegram");
       setProfile(await res.json());

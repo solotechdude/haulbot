@@ -3,15 +3,17 @@ import type { ActiveLeg, AgentStatus, CommitmentStatus, DispatchState } from "@r
 import { recordBookingCompletion } from "../booking/completion";
 import { reportExternalBooking } from "../booking/external-adoption";
 import { getDispatchState, upsertDispatchState } from "../db";
+import { requireExtensionAuth } from "../middleware/auth";
 import { getDriverProfile } from "../onboarding";
 import { recordRelayAlert, syncTripStatus } from "../relay-alerts/record";
 import { syncCampaignStatusMessage } from "../telegram/campaign-status";
 
 export const dispatcherRoutes = new Hono();
 
+dispatcherRoutes.use("*", requireExtensionAuth());
+
 dispatcherRoutes.get("/profile", async (c) => {
-  const userId = c.req.header("x-user-id");
-  if (!userId) return c.json({ error: "UNAUTHORIZED" }, 401);
+  const userId = c.get("userId");
 
   const profile = await getDriverProfile(userId);
   if (!profile) return c.json({ error: "NOT_FOUND" }, 404);
@@ -21,8 +23,7 @@ dispatcherRoutes.get("/profile", async (c) => {
 
 /** Extension poll path — hot read of dispatch_states */
 dispatcherRoutes.get("/state", async (c) => {
-  const userId = c.req.header("x-user-id");
-  if (!userId) return c.json({ error: "UNAUTHORIZED" }, 401);
+  const userId = c.get("userId");
 
   const state = await getDispatchState(userId);
   if (!state) {
@@ -41,8 +42,7 @@ dispatcherRoutes.get("/state", async (c) => {
 
 /** Backend/bot sets activeLeg — extension polls and applies on Relay */
 dispatcherRoutes.patch("/state", async (c) => {
-  const userId = c.req.header("x-user-id");
-  if (!userId) return c.json({ error: "UNAUTHORIZED" }, 401);
+  const userId = c.get("userId");
 
   const body = (await c.req
     .json<{ paused?: boolean; activeLeg?: ActiveLeg | null }>()
@@ -67,8 +67,7 @@ dispatcherRoutes.patch("/state", async (c) => {
 });
 
 dispatcherRoutes.patch("/state/heartbeat", async (c) => {
-  const userId = c.req.header("x-user-id");
-  if (!userId) return c.json({ error: "UNAUTHORIZED" }, 401);
+  const userId = c.get("userId");
 
   const body = (await c.req
     .json<{
@@ -116,8 +115,7 @@ dispatcherRoutes.patch("/state/heartbeat", async (c) => {
 
 /** E3 — extension reports book outcome (driver assigns in Relay) */
 dispatcherRoutes.post("/booking-completion", async (c) => {
-  const userId = c.req.header("x-user-id");
-  if (!userId) return c.json({ error: "UNAUTHORIZED" }, 401);
+  const userId = c.get("userId");
 
   const body = (await c.req
     .json<{
@@ -154,8 +152,7 @@ dispatcherRoutes.post("/booking-completion", async (c) => {
 
 /** E4 — extension forwards Relay cancel / schedule alerts */
 dispatcherRoutes.post("/relay-alert", async (c) => {
-  const userId = c.req.header("x-user-id");
-  if (!userId) return c.json({ error: "UNAUTHORIZED" }, 401);
+  const userId = c.get("userId");
 
   const body = (await c.req
     .json<{ type?: string; loadId?: string; message?: string }>()
@@ -175,8 +172,7 @@ dispatcherRoutes.post("/relay-alert", async (c) => {
 
 /** External / manual booking detected on Relay — ask driver before adopting */
 dispatcherRoutes.post("/external-booking", async (c) => {
-  const userId = c.req.header("x-user-id");
-  if (!userId) return c.json({ error: "UNAUTHORIZED" }, 401);
+  const userId = c.get("userId");
 
   const body = (await c.req
     .json<{
@@ -207,8 +203,7 @@ dispatcherRoutes.post("/external-booking", async (c) => {
 
 /** Upcoming / trips page status sync */
 dispatcherRoutes.post("/trip-status", async (c) => {
-  const userId = c.req.header("x-user-id");
-  if (!userId) return c.json({ error: "UNAUTHORIZED" }, 401);
+  const userId = c.get("userId");
 
   const body = (await c.req
     .json<{ loadId?: string; status?: CommitmentStatus }>()

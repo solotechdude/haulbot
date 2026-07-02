@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { verifyTelegramLinkToken } from "../auth/magic-link";
-import { requireServiceToken } from "../middleware/service-token";
+import { requireServiceToken } from "../middleware/auth";
 import { getUserIdByTelegramChat, linkTelegramChat } from "../telegram/link";
 import { storeRelay2faCode, storeRelayCredentials } from "../vault/relay-secrets";
 
