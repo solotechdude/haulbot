@@ -10,7 +10,8 @@ export type SessionStep =
   | "campaign_readiness"
   | "campaign_readiness_custom"
   | "handoff_readiness_custom"
-  | "handoff_criteria_custom";
+  | "handoff_criteria_custom"
+  | "goal_origin";
 
 export interface CampaignDraft {
   origin: string;
@@ -26,6 +27,7 @@ export interface ChatSession {
   userId?: string;
   relayEmail?: string;
   campaignDraft?: CampaignDraft;
+  goalText?: string;
 }
 
 const sessions = new Map<string, ChatSession>();

@@ -9,6 +9,8 @@ import {
   updateHandoffDraft,
 } from "../booking/handoff";
 import { getDispatchState, upsertDispatchState } from "../db";
+import { armActiveLeg } from "../dispatch/arm-leg";
+import { applyGoal } from "../goal/apply";
 import { getDriverProfile } from "../onboarding";
 import { requireServiceToken } from "../middleware/auth";
 
@@ -47,21 +49,8 @@ botDispatchRoutes.post("/campaign", async (c) => {
     return c.json({ error: "INVALID_REQUEST" }, 400);
   }
 
-  const minRate = body.minRate;
-  const minPayout = body.minPayout;
   const destination = (body.destination ?? body.origin).toUpperCase();
-  const now = new Date().toISOString();
-
-  const existing = await getDispatchState(body.userId);
-  if (existing?.commitment && !body.clearCommitment) {
-    return c.json({
-      error: "COMMITMENT_ACTIVE",
-      commitment: existing.commitment,
-    }, 409);
-  }
-
-  const readinessWindow = body.readinessWindow ?? now;
-  const searchOpensAt = readinessWindow;
+  const readinessWindow = body.readinessWindow ?? new Date().toISOString();
 
   const activeLeg: ActiveLeg = {
     mode: "campaign",
@@ -70,29 +59,38 @@ botDispatchRoutes.post("/campaign", async (c) => {
       destination,
       ...(body.radius != null ? { radius: body.radius } : {}),
     },
-    hardRules: { minRate, minPayout },
+    hardRules: { minRate: body.minRate, minPayout: body.minPayout },
     bookPriority: "payout_then_rate",
     readinessWindow,
-    searchOpensAt,
+    searchOpensAt: readinessWindow,
   };
 
-  const state = existing ?? {
-    userId: body.userId,
-    paused: false,
-    activeLeg: null,
-    commitment: null,
-    updatedAt: now,
-  };
-
-  if (body.clearCommitment) state.commitment = null;
-  state.activeLeg = activeLeg;
-  state.campaignSessionId = crypto.randomUUID();
-  state.paused = false;
-  state.updatedAt = now;
-  await upsertDispatchState(state);
-  await dismissHandoff(body.userId);
+  const result = await armActiveLeg(body.userId, activeLeg, {
+    clearCommitment: body.clearCommitment,
+  });
+  if (!result.ok) {
+    return c.json({ error: result.error, commitment: result.commitment }, 409);
+  }
 
   return c.json({ ok: true, activeLeg });
+});
+
+/** O3 — Telegram: /goal <natural language> */
+botDispatchRoutes.post("/goal", async (c) => {
+  const body = await c.req.json<{ userId?: string; text?: string; origin?: string }>();
+  if (!body.userId || !body.text?.trim()) {
+    return c.json({ error: "INVALID_REQUEST" }, 400);
+  }
+
+  const result = await applyGoal(body.userId, body.text.trim(), body.origin);
+  if (!result.ok) {
+    if (result.error === "NEED_ORIGIN") {
+      return c.json({ error: "NEED_ORIGIN", goal: result.goal }, 422);
+    }
+    return c.json({ error: result.error, commitment: result.commitment }, 409);
+  }
+
+  return c.json({ ok: true, activeLeg: result.activeLeg, goal: result.goal });
 });
 
 botDispatchRoutes.post("/campaign-status-pin", async (c) => {

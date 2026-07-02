@@ -30,6 +30,7 @@ export {
 export type {
   DispatchHandoff,
   DispatchPlan,
+  GoalContext,
   HandoffAwaitingField,
   HandoffDraftNextLeg,
 } from "./dispatch-plan";

@@ -85,6 +85,39 @@ export async function setCampaign(
   return res.json() as Promise<{ ok: true; activeLeg: { mode: string; searchCriteria: Record<string, unknown>; hardRules: Record<string, unknown>; readinessWindow?: string } }>;
 }
 
+export interface GoalResponse {
+  activeLeg: {
+    mode: string;
+    searchCriteria: { origin?: string; destination?: string };
+    hardRules: { minRate?: number; minPayout?: number };
+  };
+  goal: {
+    revenueTarget?: number;
+    deadline?: string;
+    destinationCity?: string;
+    dailyTarget?: number;
+  };
+}
+
+export async function setGoal(
+  userId: string,
+  text: string,
+  origin?: string,
+): Promise<GoalResponse> {
+  const res = await fetch(`${apiOrigin}/v1/bot/dispatch/goal`, {
+    method: "POST",
+    headers: headers(),
+    body: JSON.stringify({ userId, text, origin }),
+  });
+  if (res.status === 422) throw new Error("NEED_ORIGIN");
+  if (res.status === 409) {
+    const data = (await res.json()) as { commitment?: { loadId: string } };
+    throw new Error(`COMMITMENT_ACTIVE:${data.commitment?.loadId ?? "unknown"}`);
+  }
+  if (!res.ok) throw new Error(`goal failed: ${res.status}`);
+  return res.json() as Promise<GoalResponse>;
+}
+
 export async function completeCommitment(userId: string, loadId?: string): Promise<string> {
   const res = await fetch(`${apiOrigin}/v1/bot/dispatch/complete`, {
     method: "POST",

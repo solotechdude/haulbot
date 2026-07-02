@@ -173,6 +173,7 @@ export function registerDispatchHandlers(bot: Bot): void {
   bot.command("help", async (ctx) => {
     await ctx.reply(
       "RelayBooking SOLO commands:\n\n" +
+        "/goal <objective> — e.g. /goal $8k this week, Atlanta by Thursday\n" +
         "/campaign ORIGIN minRate minPayout — search & book (defaults to anywhere)\n" +
         "/complete [tripId] — mark current trip done\n" +
         "/status — dispatch state\n" +
@@ -219,6 +220,75 @@ export function registerDispatchHandlers(bot: Bot): void {
       await ctx.reply("No active trip to complete. Use /status to check.");
     }
   });
+
+  bot.command("goal", async (ctx) => {
+    const text = ctx.match?.trim();
+    if (!text) {
+      await ctx.reply(
+        "Tell me your objective in plain words.\n\n" +
+          "Examples:\n" +
+          "/goal $8k this week\n" +
+          "/goal $5k from DFW, Atlanta by Thursday",
+      );
+      return;
+    }
+
+    const userId = await requireLinkedUser(ctx.chat?.id);
+    if (!userId) {
+      await ctx.reply("Link Telegram first — Connect Telegram on /solo.");
+      return;
+    }
+
+    await submitGoal(ctx.chat!.id, (t) => ctx.reply(t), userId, text);
+  });
+
+  async function submitGoal(
+    chatId: number,
+    reply: (text: string) => Promise<unknown>,
+    userId: string,
+    text: string,
+    origin?: string,
+  ): Promise<void> {
+    try {
+      const result = await api.setGoal(userId, text, origin);
+      const session = getSession(chatId);
+      delete session.step;
+      delete session.goalText;
+
+      const leg = result.activeLeg;
+      const routeLine = formatRoute(
+        String(leg.searchCriteria.origin ?? "?"),
+        String(leg.searchCriteria.destination ?? leg.searchCriteria.origin ?? "?"),
+      );
+      const target = result.goal.revenueTarget
+        ? `Target: $${result.goal.revenueTarget.toLocaleString("en-US")}${
+            result.goal.deadline ? ` by ${formatReadiness(result.goal.deadline)}` : ""
+          }\n`
+        : "";
+      await reply(
+        `Goal set.\n${target}Searching: ${routeLine}\n` +
+          `The agent books loads that keep you on pace. /status for details, /pause to stop.`,
+      );
+    } catch (err) {
+      const message = (err as Error).message;
+      if (message === "NEED_ORIGIN") {
+        const session = getSession(chatId);
+        session.userId = userId;
+        session.goalText = text;
+        session.step = "goal_origin";
+        await reply("Where are you starting from? Reply with a city (e.g. DFW).");
+        return;
+      }
+      if (message.startsWith("COMMITMENT_ACTIVE:")) {
+        const loadId = message.split(":")[1];
+        await reply(
+          `You have an active trip (${loadId}). Send /complete when it's done, then set your goal again.`,
+        );
+        return;
+      }
+      await reply("Could not set that goal. Try again or use /campaign.");
+    }
+  }
 
   bot.command("campaign", async (ctx) => {
     const parts = ctx.match?.trim().split(/\s+/) ?? [];
@@ -416,6 +486,11 @@ export function registerDispatchHandlers(bot: Bot): void {
     const session = getSession(ctx.chat.id);
     const draft = session.campaignDraft;
     const text = ctx.message.text.trim();
+
+    if (session.step === "goal_origin" && session.userId && session.goalText) {
+      await submitGoal(ctx.chat.id, (t) => ctx.reply(t), session.userId, session.goalText, text);
+      return;
+    }
 
     if (session.step === "campaign_filter_destination" && session.userId && draft) {
       const dest =
