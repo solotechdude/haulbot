@@ -42,7 +42,7 @@ async function postDispatch<T>(path: string, body: unknown, label: string): Prom
 
 export interface ActiveLegSummary {
   mode: string;
-  searchCriteria: { origin?: string; destination?: string };
+  searchCriteria: { origin?: string; destination?: string; radius?: number };
   hardRules: { minRate?: number; minPayout?: number };
   readinessWindow?: string;
 }

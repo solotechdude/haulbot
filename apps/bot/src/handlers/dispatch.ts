@@ -500,6 +500,9 @@ export function registerDispatchHandlers(bot: Bot): void {
     const legLine = leg
       ? `${leg.mode}: ${formatRouteLabel(leg.searchCriteria.origin ?? "?", leg.searchCriteria.destination ?? "?")}`
       : "none";
+    const rulesLine = leg
+      ? `\nBook mins: $${leg.hardRules.minRate ?? "?"}/mi · $${leg.hardRules.minPayout ?? "?"} payout · ${leg.searchCriteria.radius ?? 50}mi radius`
+      : "";
     const commitment = dispatch.commitment;
     const commitmentLine = commitment
       ? `${commitment.loadId} (${commitment.origin ?? "?"} → ${commitment.destination ?? "?"}) — /complete to clear`
@@ -531,7 +534,7 @@ export function registerDispatchHandlers(bot: Bot): void {
     return (
       `Onboarding: ${profile.onboardingStep}\n` +
       `Paused: ${dispatch.paused ? "yes" : "no"}\n` +
-      `Active leg: ${legLine}${readyLine}\n` +
+      `Active leg: ${legLine}${rulesLine}${readyLine}\n` +
       `Commitment: ${commitmentLine}${pendingLine}${agentLine}${scanLine}${handoffStatusLine(handoff)}${armLine}${accessLine}`
     );
   }
