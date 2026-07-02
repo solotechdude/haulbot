@@ -1,4 +1,4 @@
-import { Bot } from "grammy";
+import { Bot, webhookCallback } from "grammy";
 import * as api from "./api";
 import { registerDispatchHandlers } from "./handlers/dispatch";
 import { registerHandoffHandlers } from "./handlers/handoff";
@@ -41,19 +41,49 @@ bot.catch((err) => {
   }
 });
 
-let stopping = false;
+const webhookUrl = process.env.TELEGRAM_WEBHOOK_URL;
 
-async function shutdown(signal?: string): Promise<void> {
-  if (stopping) return;
-  stopping = true;
-  console.log("[bot] stopping…", signal ?? "");
-  await bot.stop();
-  process.exit(0);
+if (webhookUrl) {
+  // Production — Telegram pushes updates; no getUpdates conflicts across replicas
+  const secretToken = process.env.TELEGRAM_WEBHOOK_SECRET || undefined;
+  const port = Number(process.env.BOT_PORT ?? 8081);
+  const path = new URL(webhookUrl).pathname;
+
+  await bot.init();
+  await bot.api.setWebhook(webhookUrl, { secret_token: secretToken });
+
+  const handleUpdate = webhookCallback(bot, "std/http", { secretToken });
+
+  Bun.serve({
+    port,
+    fetch: async (req) => {
+      const url = new URL(req.url);
+      if (req.method === "POST" && url.pathname === path) {
+        return handleUpdate(req);
+      }
+      if (url.pathname === "/health") {
+        return Response.json({ ok: true, service: "relaybooking-bot", mode: "webhook" });
+      }
+      return new Response("Not found", { status: 404 });
+    },
+  });
+
+  console.log("[bot] webhook mode on :%d (path %s)", port, path);
+} else {
+  let stopping = false;
+
+  const shutdown = async (signal?: string): Promise<void> => {
+    if (stopping) return;
+    stopping = true;
+    console.log("[bot] stopping…", signal ?? "");
+    await bot.stop();
+    process.exit(0);
+  };
+
+  process.once("SIGINT", () => void shutdown("SIGINT"));
+  process.once("SIGTERM", () => void shutdown("SIGTERM"));
+
+  await bot.api.deleteWebhook({ drop_pending_updates: false });
+  console.log("[bot] starting long polling (pid %d)…", process.pid);
+  await bot.start();
 }
-
-process.once("SIGINT", () => void shutdown("SIGINT"));
-process.once("SIGTERM", () => void shutdown("SIGTERM"));
-
-await bot.api.deleteWebhook({ drop_pending_updates: false });
-console.log("[bot] starting long polling (pid %d)…", process.pid);
-await bot.start();
