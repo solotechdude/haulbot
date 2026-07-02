@@ -59,9 +59,16 @@ export function formatCampaignStatusMessage(input: {
   commitmentLoadId?: string | null;
   readinessWindow?: string | null;
   agentStatus?: AgentStatus | null;
+  /** Set while a Relay access issue blocks the agent */
+  relayAccessKind?: string | null;
 }): string {
   const legLine = formatRouteLabel(input.origin, input.destination);
   const lines: string[] = [`Campaign: ${legLine}`];
+
+  if (input.relayAccessKind) {
+    lines.push("Relay access blocked — see the alert message above. Searching resumes automatically.");
+    return lines.join("\n");
+  }
 
   if (input.commitmentLoadId) {
     lines.push(`Active trip: ${input.commitmentLoadId}`);

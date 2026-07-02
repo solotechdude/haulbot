@@ -35,6 +35,10 @@ export type {
   HandoffDraftNextLeg,
 } from "./dispatch-plan";
 export type {
+  RelayAccessIssue,
+  RelayAccessIssueKind,
+} from "./relay-access";
+export type {
   RefreshBackoff,
   RefreshHotWindow,
   RefreshPolicy,

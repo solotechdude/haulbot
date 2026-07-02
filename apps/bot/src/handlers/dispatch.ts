@@ -486,6 +486,14 @@ export function registerDispatchHandlers(bot: Bot): void {
     await activateCampaign(ctx.chat.id, (t, extra) => ctx.reply(t, extra), session.userId, draft, iso, false);
   });
 
+  const RELAY_ACCESS_STATUS: Record<string, string> = {
+    permission_denied: "blocked — Relay account needs Load Board permission (ask your carrier admin)",
+    session_expired: "signing back in to Relay…",
+    login_failed: "blocked — Relay login failed, send /connect_relay",
+    "2fa_required": "blocked — send /2fa CODE",
+    captcha: "blocked — Relay verification check, retrying",
+  };
+
   function formatStatusText(status: api.DispatchStatus): string {
     const { profile, dispatch, handoff } = status;
     const leg = dispatch.activeLeg;
@@ -514,12 +522,15 @@ export function registerDispatchHandlers(bot: Bot): void {
           ? "\nExtension: queued — /complete current trip to arm"
           : "\nExtension: not armed — /campaign → Book now"
       : "";
+    const accessLine = dispatch.relayAccess
+      ? `\nRelay access: ${RELAY_ACCESS_STATUS[dispatch.relayAccess.kind] ?? `blocked (${dispatch.relayAccess.kind})`}`
+      : "";
 
     return (
       `Onboarding: ${profile.onboardingStep}\n` +
       `Paused: ${dispatch.paused ? "yes" : "no"}\n` +
       `Active leg: ${legLine}${readyLine}\n` +
-      `Commitment: ${commitmentLine}${pendingLine}${agentLine}${scanLine}${handoffStatusLine(handoff)}${armLine}`
+      `Commitment: ${commitmentLine}${pendingLine}${agentLine}${scanLine}${handoffStatusLine(handoff)}${armLine}${accessLine}`
     );
   }
 

@@ -67,6 +67,7 @@ export interface DispatchStatus {
       relayWorkState?: string;
       lastScanSummary?: { scanned: number; booked: boolean; loadId?: string };
     } | null;
+    relayAccess?: { kind: string; detectedAt: string } | null;
   };
   handoff?: HandoffSummary | null;
 }

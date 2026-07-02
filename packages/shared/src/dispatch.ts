@@ -73,6 +73,8 @@ export interface DispatchState {
   agentStatus?: import("./agent-status.js").AgentStatus;
   /** Board refresh tuning — extension falls back to DEFAULT_REFRESH_POLICY when unset */
   refreshPolicy?: import("./refresh-policy.js").RefreshPolicy;
+  /** Set while Relay blocks the agent (permissions, login, 2FA) — extension defers scanning */
+  relayAccess?: import("./relay-access.js").RelayAccessIssue | null;
   heartbeatAt?: string;
   updatedAt: string;
 }

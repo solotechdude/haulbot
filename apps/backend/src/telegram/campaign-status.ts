@@ -28,6 +28,7 @@ export async function syncCampaignStatusMessage(
     commitmentLoadId: state.commitment?.loadId ?? null,
     readinessWindow: leg?.readinessWindow ?? null,
     agentStatus: next,
+    relayAccessKind: state.relayAccess?.kind ?? null,
   });
 
   await editTelegramMessage(pin.telegramChatId, pin.messageId, text, [

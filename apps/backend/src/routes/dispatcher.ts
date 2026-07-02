@@ -13,6 +13,7 @@ import { reportExternalBooking } from "../booking/external-adoption";
 import { getDb, getDispatchState, upsertDispatchState } from "../db";
 import { requireExtensionAuth } from "../middleware/auth";
 import { getDriverProfile } from "../onboarding";
+import { clearRelayAccessIssue, reportRelayAccessIssue } from "../relay-alerts/access";
 import { recordRelayAlert, syncTripStatus } from "../relay-alerts/record";
 import { syncCampaignStatusMessage } from "../telegram/campaign-status";
 import { consumeRelay2faCode, getRelayCredentials } from "../vault/relay-secrets";
@@ -179,6 +180,41 @@ dispatcherRoutes.post("/relay-alert", async (c) => {
   });
 
   return c.json({ ok: true });
+});
+
+const RELAY_ACCESS_KINDS = [
+  "permission_denied",
+  "session_expired",
+  "login_failed",
+  "2fa_required",
+  "captcha",
+] as const;
+
+/**
+ * Blocking Relay page states (permissions wall, logout, 2FA, CAPTCHA).
+ * Extension reports on detect and again with resolved:true once access works.
+ */
+dispatcherRoutes.post("/relay-access", async (c) => {
+  const userId = c.get("userId");
+
+  const body = (await c.req
+    .json<{ kind?: string; message?: string; resolved?: boolean }>()
+    .catch(() => ({}))) as { kind?: string; message?: string; resolved?: boolean };
+
+  if (body.resolved) {
+    const result = await clearRelayAccessIssue(userId);
+    return c.json({ ok: true, ...result });
+  }
+
+  if (!body.kind || !RELAY_ACCESS_KINDS.includes(body.kind as (typeof RELAY_ACCESS_KINDS)[number])) {
+    return c.json({ error: "INVALID_REQUEST" }, 400);
+  }
+
+  const result = await reportRelayAccessIssue(userId, {
+    kind: body.kind as (typeof RELAY_ACCESS_KINDS)[number],
+    message: body.message,
+  });
+  return c.json({ ok: true, ...result });
 });
 
 /** External / manual booking detected on Relay — ask driver before adopting */
