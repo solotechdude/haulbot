@@ -512,9 +512,11 @@ export function registerDispatchHandlers(bot: Bot): void {
     const pendingLine = dispatch.pendingAdoption
       ? `\nPending adoption: ${dispatch.pendingAdoption.loadId} (check Telegram buttons)`
       : "";
-    const readyLine = leg?.readinessWindow
-      ? `\nPickup ready: ${formatReadiness(leg.readinessWindow)}`
-      : "";
+    // Stale (past) readiness reads like a pending pickup — show only future windows
+    const readyLine =
+      leg?.readinessWindow && new Date(leg.readinessWindow).getTime() > Date.now()
+        ? `\nPickup ready: ${formatReadiness(leg.readinessWindow)}`
+        : "";
     const armLine = leg
       ? dispatch.campaignSessionId
         ? "\nExtension: armed"
