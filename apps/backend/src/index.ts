@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import { startMorningBriefingLoop } from "./briefing";
 import { ensureIndexes } from "./db";
 import { authRoutes } from "./routes/auth";
 import { botDispatchRoutes } from "./routes/bot-dispatch";
@@ -28,6 +29,8 @@ const port = Number(process.env.PORT ?? 8080);
 await ensureIndexes().catch((err) => {
   console.warn("[backend] MongoDB indexes skipped:", (err as Error).message);
 });
+
+startMorningBriefingLoop();
 
 console.log(`[backend] listening on :${port}`);
 

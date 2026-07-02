@@ -1,4 +1,6 @@
 import type { ActiveLeg, Commitment, DispatchState } from "@relaybooking/shared";
+import { DEFAULT_REFRESH_POLICY } from "@relaybooking/shared";
+import { fetchLaneInsights, postingWindowsToHotWindows } from "../analytics/engine-client";
 import { getDispatchState, upsertDispatchState } from "../db";
 import { dismissHandoff } from "../booking/handoff";
 
@@ -36,6 +38,18 @@ export async function armActiveLeg(
   state.campaignSessionId = crypto.randomUUID();
   state.paused = false;
   state.updatedAt = now;
+
+  // Market Intelligence → refresh hot windows for this lane (best effort)
+  if (activeLeg.searchCriteria.origin) {
+    const insights = await fetchLaneInsights(
+      activeLeg.searchCriteria.origin,
+      activeLeg.searchCriteria.destination,
+    );
+    const hotWindows = postingWindowsToHotWindows(insights);
+    if (hotWindows.length > 0) {
+      state.refreshPolicy = { ...DEFAULT_REFRESH_POLICY, hotWindows, updatedAt: now };
+    }
+  }
 
   await upsertDispatchState(state);
   await dismissHandoff(userId);

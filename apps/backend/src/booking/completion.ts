@@ -45,7 +45,7 @@ export async function recordBookingCompletion(input: BookingCompletionInput): Pr
   state.updatedAt = now;
   await upsertDispatchState(state);
 
-  await openHandoffOnBook(input.userId, {
+  const handoff = await openHandoffOnBook(input.userId, {
     bookedLoadId: input.loadId,
     deliveryCity: input.destination ?? "unknown",
     priorLeg,
@@ -69,11 +69,24 @@ export async function recordBookingCompletion(input: BookingCompletionInput): Pr
   const rate = input.ratePerMile != null ? `$${input.ratePerMile}/mi` : "";
   const deliveryCity = dest.toUpperCase();
 
+  // I3 — Load Recommendation from Market Intelligence, not a live load alert
+  const insights = handoff.laneInsights;
+  const insightLines: string[] = [];
+  if (insights?.recommendation) {
+    insightLines.push(`Tip: ${insights.recommendation}`);
+  } else if (insights?.avgRatePerMile) {
+    insightLines.push(
+      `Market: ${deliveryCity} averages $${insights.avgRatePerMile.toFixed(2)}/mi` +
+        (insights.dailyLoadVolume ? ` on ~${insights.dailyLoadVolume} loads/day` : ""),
+    );
+  }
+
   const msg = [
     "Load booked — assign driver in Relay when ready.",
     `Trip: ${input.loadId}`,
     `${origin} → ${dest}`,
     payout && rate ? `${payout} (${rate})` : payout || rate,
+    ...insightLines,
     "",
     `When do you want your next load in ${deliveryCity}?`,
   ]

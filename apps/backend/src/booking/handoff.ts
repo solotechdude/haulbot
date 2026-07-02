@@ -1,4 +1,5 @@
 import type { ActiveLeg, DispatchHandoff } from "@relaybooking/shared";
+import { fetchLaneInsights } from "../analytics/engine-client";
 import { getDispatchPlan, getDispatchState, upsertDispatchPlan, upsertDispatchState } from "../db";
 
 export interface OpenHandoffInput {
@@ -11,11 +12,18 @@ function defaultHardRules(priorLeg?: ActiveLeg | null) {
   return priorLeg?.hardRules ?? { minRate: 2.5, minPayout: 800 };
 }
 
-export async function openHandoffOnBook(userId: string, input: OpenHandoffInput): Promise<void> {
+export async function openHandoffOnBook(
+  userId: string,
+  input: OpenHandoffInput,
+): Promise<DispatchHandoff> {
   const now = new Date().toISOString();
   const deliveryCity = input.deliveryCity.toUpperCase();
   const hardRules = defaultHardRules(input.priorLeg);
   const destination = input.priorLeg?.searchCriteria.destination?.toUpperCase() ?? deliveryCity;
+
+  // I2 — cache Market Intelligence for the delivery lane at handoff
+  const laneInsights =
+    deliveryCity !== "UNKNOWN" ? await fetchLaneInsights(deliveryCity, destination) : null;
 
   const handoff: DispatchHandoff = {
     deliveryCity,
@@ -29,6 +37,7 @@ export async function openHandoffOnBook(userId: string, input: OpenHandoffInput)
       },
       hardRules,
     },
+    laneInsights,
   };
 
   const plan = (await getDispatchPlan(userId)) ?? {
@@ -41,6 +50,8 @@ export async function openHandoffOnBook(userId: string, input: OpenHandoffInput)
   plan.handoff = handoff;
   plan.updatedAt = now;
   await upsertDispatchPlan(plan);
+
+  return handoff;
 }
 
 export async function dismissHandoff(userId: string): Promise<void> {

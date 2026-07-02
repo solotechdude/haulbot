@@ -13,6 +13,8 @@ export interface DispatchHandoff {
   suggestedReadiness: string;
   awaitingField: HandoffAwaitingField;
   draftNextLeg: HandoffDraftNextLeg;
+  /** Market Intelligence for the delivery lane, cached at handoff (I2/I3) */
+  laneInsights?: import("./telemetry.js").LaneInsights | null;
 }
 
 /** Interpreted Goal (O3) — system-owned Strategy context, opaque to the Driver */
