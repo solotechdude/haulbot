@@ -3,9 +3,12 @@
 
 import { MongoClient } from "mongodb";
 
-const uri = process.env.MONGODB_URI ?? "mongodb://127.0.0.1:27017/relaybooking";
+const uri =
+  process.env.MONGODB_URI ?? "mongodb://127.0.0.1:27019/relaybooking_solo";
+
 const userId = "dev-user-1";
 const email = "dev@relaybooking.local";
+const now = new Date().toISOString();
 
 const client = new MongoClient(uri);
 await client.connect();
@@ -18,7 +21,7 @@ await db.collection("users").updateOne(
       id: userId,
       email,
       relayReadyAt: null,
-      updatedAt: new Date().toISOString(),
+      updatedAt: now,
     },
   },
   { upsert: true },
@@ -31,7 +34,7 @@ await db.collection("subscriptions").updateOne(
       userId,
       plan: "SOLO",
       status: "active",
-      updatedAt: new Date().toISOString(),
+      updatedAt: now,
     },
   },
   { upsert: true },
@@ -44,11 +47,25 @@ await db.collection("provisioned_environments").updateOne(
       userId,
       provisionState: "ready",
       productTier: "SOLO",
-      updatedAt: new Date().toISOString(),
+      updatedAt: now,
     },
   },
   { upsert: true },
 );
 
-console.log(`Seeded dev user ${userId} (${email})`);
+await db.collection("dispatch_states").updateOne(
+  { userId },
+  {
+    $set: {
+      userId,
+      paused: false,
+      activeLeg: null,
+      commitment: null,
+      updatedAt: now,
+    },
+  },
+  { upsert: true },
+);
+
+console.log(`Seeded dev user ${userId} (${email}) → ${uri}`);
 await client.close();

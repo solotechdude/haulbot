@@ -1,6 +1,6 @@
-import type { DispatchState } from "@relaybooking/shared";
+import type { DispatchPlan, DispatchState } from "@relaybooking/shared";
 
-const uri = process.env.MONGODB_URI ?? "mongodb://127.0.0.1:27017/relaybooking";
+const uri = process.env.MONGODB_URI ?? "mongodb://127.0.0.1:27019/relaybooking_solo";
 
 let client: import("mongodb").MongoClient | null = null;
 
@@ -30,8 +30,32 @@ export async function upsertDispatchState(state: DispatchState): Promise<void> {
   );
 }
 
+export async function getDispatchPlan(userId: string): Promise<DispatchPlan | null> {
+  const db = await getDb();
+  const doc = await db.collection("dispatch_plans").findOne({ userId });
+  if (!doc) return null;
+  const { _id, ...rest } = doc as DispatchPlan & { _id: unknown };
+  return rest;
+}
+
+export async function upsertDispatchPlan(plan: DispatchPlan): Promise<void> {
+  const db = await getDb();
+  await db.collection("dispatch_plans").updateOne(
+    { userId: plan.userId },
+    { $set: plan },
+    { upsert: true },
+  );
+}
+
 export async function ensureIndexes(): Promise<void> {
   const db = await getDb();
   await db.collection("dispatch_states").createIndex({ userId: 1 }, { unique: true });
   await db.collection("dispatch_plans").createIndex({ userId: 1 }, { unique: true });
+  await db.collection("subscriptions").createIndex({ userId: 1 }, { unique: true });
+  await db.collection("users").createIndex({ id: 1 }, { unique: true });
+  await db.collection("users").createIndex({ email: 1 }, { unique: true, sparse: true });
+  await db.collection("provisioned_environments").createIndex({ userId: 1 }, { unique: true });
+  await db.collection("telegram_links").createIndex({ userId: 1 }, { unique: true });
+  await db.collection("telegram_links").createIndex({ telegramChatId: 1 }, { unique: true });
+  await db.collection("relay_alerts").createIndex({ userId: 1, createdAt: -1 });
 }

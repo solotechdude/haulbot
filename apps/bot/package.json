@@ -4,11 +4,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "bun run --watch src/index.ts",
-    "start": "bun run src/index.ts",
+    "dev": "bun --env-file=../../.env.development.local --env-file=../../.env run --watch src/index.ts",
+    "start": "bun --env-file=../../.env.development.local --env-file=../../.env run src/index.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@relaybooking/shared": "workspace:*"
+    "@relaybooking/shared": "workspace:*",
+    "grammy": "^1.35.0"
   }
 }

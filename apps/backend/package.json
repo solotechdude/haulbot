@@ -4,13 +4,17 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "bun run --watch src/index.ts",
-    "start": "bun run src/index.ts",
+    "dev": "bun --env-file=../../.env.development.local --env-file=../../.env run --watch src/index.ts",
+    "start": "bun --env-file=../../.env.development.local --env-file=../../.env run src/index.ts",
+    "seed:dev": "bun --env-file=../../.env.development.local --env-file=../../.env run scripts/seed-dev-user.ts",
+    "set:campaign": "bun --env-file=../../.env.development.local --env-file=../../.env run scripts/set-campaign-dev.ts",
+    "reconcile:stripe": "bun --env-file=../../.env.development.local --env-file=../../.env run scripts/reconcile-stripe-user.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "@relaybooking/shared": "workspace:*",
     "hono": "^4.7.2",
-    "mongodb": "^6.13.0"
+    "mongodb": "^6.13.0",
+    "stripe": "^17.7.0"
   }
 }

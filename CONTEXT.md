@@ -2,6 +2,8 @@
 
 An AI dispatch service for solo Amazon Relay owner-operators. The driver sets objectives; a dedicated remote agent searches and books loads on their behalf while they drive.
 
+**Operator docs:** [docs/campaign-bot-flow.md](./docs/campaign-bot-flow.md) — `/campaign ORIGIN minRate minPayout` wizard and defaults.
+
 ## Language
 
 **Driver**:
@@ -33,12 +35,48 @@ The system's interpreted plan for achieving an active **Goal** — opaque to the
 _Avoid_: Campaign, search rule, filters
 
 **Campaign**:
-A Driver-defined search specification that mirrors Amazon Relay load board filters (origin, destination, min payout, min rate, equipment, etc.).
+A Driver-defined search specification that mirrors Amazon Relay load board filters (origin, destination, min payout, min rate, equipment, etc.). **Required via Telegram slash command:** origin, autobooker min rate ($/mi), autobooker min payout. **Defaults without extra input:** destination anywhere, radius 50mi, equipment tractor+trailer. All other Relay filters are optional via the **Add more filters** step or **Fine-tune**. Full flow: [`docs/campaign-bot-flow.md`](./docs/campaign-bot-flow.md).
 _Avoid_: Saved search (Relay UI term), filter set, goal
 
+**Campaign Preset**:
+A named, reusable **Campaign** configuration the Driver saves and retrieves via the **Telegram Bot** — not Amazon Relay's saved search. **Pinned presets** are named favorites; **Campaign History** keeps recent searches for one-tap reuse; when origin matches a pinned preset, the bot suggests it proactively.
+_Avoid_: Saved search, filter template, strategy
+
 **Search Criteria**:
-The structured filter dimensions a **Campaign** maps onto on the Relay load board (origin/destination + radius, work type, driver type, load type, price/mile min, payout min, trip duration, trip distance, equipment).
-_Avoid_: Strategy (system-owned), goal
+The **Relay filters** a **Campaign** applies on the load board — what Amazon Relay returns as search results (origin/destination + radius, work type, driver type, load type, price/mile min, payout min, trip duration, trip distance, equipment). May be looser than **Hard Rules**.
+_Avoid_: Strategy (system-owned), goal, autobooker thresholds
+
+**Book Priority**:
+How the **Dispatch Agent** ranks loads that pass **Hard Rules** before attempting **Booking Completion** — default: highest payout first, then highest $/mi.
+_Avoid_: Sort order, scoring function, best load heuristic
+
+**Relay Work State**:
+Where the **Dispatch Agent** is in a single active load-board cycle — idle, applying filters, ready to scan, scanning, or booking. Overlapping apply/scan/book on the same tab is forbidden to prevent mistaken books and broken flows.
+_Avoid_: Extension state, tab state, polling phase
+
+**Campaign Status**:
+A single pinned Telegram message updated in place while a **Campaign** is active — route, armed state, **Relay Work State**, and last scan summary. Full detail available via `/status` or a **Details** button; scan ticks do not post to chat.
+_Avoid_: Heartbeat message, scan log, agent status feed
+
+**Campaign Review**:
+The pre-arm summary step in the **Telegram Bot** wizard — after must-haves (`/campaign ORIGIN minRate minPayout`) and optional filters. Operator can **Start searching**, **Edit filters**, or **Save preset** from one screen.
+_Avoid_: Confirmation screen, summary card, campaign preview
+
+**Fine-tune**:
+Optional **Campaign** configuration beyond must-haves, organized in the **Telegram Bot** wizard to mirror Relay load board sections (Location → Equipment → Work type → Load type → Driver type → Price → Time). Rarely used filters sit under **Advanced** (board price mins, trip time/distance).
+_Avoid_: Advanced search, filter editor, custom filters
+
+**Wide Net**:
+A per-**Campaign** mode where **Search Criteria** min payout/rate on Relay are loosened or omitted so the board returns more loads for **Load Telemetry**, while **Hard Rules** stay strict. Heavier autobooker matching; default off.
+_Avoid_: Analytics mode, loose search, scout mode
+
+**Material Criteria Change**:
+A change to origin, destination, or equipment on an active **Campaign** that requires a fresh Relay **+ New search** tab before re-applying filters — as opposed to in-place tweaks (book mins, **Wide Net**, radius).
+_Avoid_: Major edit, filter reset, search refresh
+
+**Campaign Edit**:
+Changing an armed **Campaign** while the **Dispatch Agent** is active. Minor tweaks hot-reload in place with a brief Telegram ack. A **Material Criteria Change** requires operator confirmation, a fresh tab, and re-arm.
+_Avoid_: Filter update, campaign patch, re-search
 
 **Dispatch Leg**:
 One search-and-book cycle from the Driver's current position (or expected post-delivery position) to a booked load.
@@ -81,8 +119,8 @@ The three data points the **Load Analytics Engine** ingests from Relay extension
 _Avoid_: Board snapshot, agent decision, telemetry event (too generic)
 
 **Hard Rules**:
-Non-negotiable **Search Criteria** the Driver sets for the next leg (min rate, min payout, radius, heading) — the agent auto-books live matches instantly without Driver approval.
-_Avoid_: Filters, campaign (Campaign is the full spec; Hard Rules are the must-haves)
+The **autobooker filters** — minimum payout and $/mi the **Dispatch Agent** requires before auto-booking. Loads below these are dropped; among survivors, **Book Priority** picks which to book first. Independent of **Search Criteria** when the operator wants a wider board net with a stricter book gate.
+_Avoid_: Relay filters, board filters, campaign (Campaign is the full spec)
 
 **Availability Prompt**:
 A simplified Telegram prompt during **Next-Leg Handoff** — "When would you like to pick up in Atlanta?" with presets relative to delivery or a computed suggestion, plus optional criteria tuning.
@@ -148,9 +186,13 @@ _Avoid_: Campaign list, handoff session store
 - A **Telegram Bot** conversation is linked to exactly one **Driver** — no cross-driver messaging
 - When a **Driver** unsubscribes, their **Dedicated Environment** and **Relay Session** are terminated
 - A **Goal** produces a **Strategy** when the Driver is in goal-driven dispatch
-- A **Campaign** maps directly to **Search Criteria** on the Relay load board when the Driver is in campaign-driven dispatch
+- **Campaign** maps **Search Criteria** to Relay and **Hard Rules** to the autobooker; **Wide Net** optionally decouples board mins from book mins
+- When **Wide Net** is off and board price mins are unset, **Search Criteria** board mins default to **Hard Rules** mins
+- A **Campaign Preset** stores a full or partial **Campaign** for reuse via the **Telegram Bot**; **Campaign History** and lane-matched suggestions reduce re-entry
 - **Goal** is the primary dispatch mode; **Campaign** is an explicit alternative the Driver can switch to
 - At any moment, exactly one **Dispatch Leg** is active on Relay — the agent cannot search two unrelated origins simultaneously
+- The **Dispatch Agent** maintains one canonical load board tab per **Relay Session**; **Relay Work State** prevents overlapping apply, scan, and book
+- A **Material Criteria Change** starts a fresh **+ New search** tab; other **Campaign** edits re-apply in place via **Campaign Edit**
 - A **Continuity Queue** holds future legs in order; the next leg activates only after the current leg is satisfied (booked)
 - **Campaign** B (e.g. ATL → FL) cannot run until **Campaign** A (e.g. DFW → anywhere) is satisfied
 - **Leg Transition** to the next leg uses the **Readiness Window**, balancing continuity (search early) against security (don't book loads the Driver can't make)
@@ -179,7 +221,10 @@ _Avoid_: Campaign list, handoff session store
 > **Domain expert:** "No. The agent in a Dedicated Environment is bound to that Driver's linked Telegram only."
 
 > **Dev:** "Driver says 'I need $8k this week' but also wants to set origin Memphis and min $2.40/mi. Is that one thing or two?"
-> **Domain expert:** "Two modes. **Goal** is the default — the system interprets intent. **Campaign** is when the Driver wants hands-on control matching the Relay load board filters they already know."
+> **Domain expert:** "Two modes. **Goal** is the default — the system interprets intent. **Campaign** is when the Driver wants hands-on control: `/campaign MEMPHIS 2.4 800` then optional filters, then arm."
+
+> **Dev:** "What does `/campaign BRAMPTON 3 200` search?"
+> **Domain expert:** "Brampton origin, $3/mi and $200 min payout to **book**. Destination defaults to **anywhere** unless the Driver adds a destination filter. Radius defaults 50mi, equipment tractor+trailer."
 
 > **Dev:** "Can the agent search DFW → anywhere and ATL → FL at the same time?"
 > **Domain expert:** "No. One truck, one position, one Relay search. DFW → anywhere is the active **Dispatch Leg**. ATL → FL goes in the **Continuity Queue** and starts only after the DFW leg is booked."

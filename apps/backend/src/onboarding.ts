@@ -5,12 +5,14 @@ export function resolveOnboardingStep(input: {
   hasSubscription: boolean;
   environmentReady: boolean;
   telegramLinked: boolean;
+  relay2faPending: boolean;
   relayReady: boolean;
   agentActive: boolean;
 }): OnboardingStep {
   if (!input.hasSubscription) return "subscribed";
   if (!input.environmentReady) return "subscribed";
   if (!input.telegramLinked) return "environment_ready";
+  if (input.relay2faPending) return "relay_2fa_required";
   if (!input.relayReady) return "telegram_linked";
   if (!input.agentActive) return "relay_ready";
   return "active";
@@ -28,10 +30,13 @@ export async function getDriverProfile(userId: string): Promise<DriverProfile | 
   const env = await db.collection("provisioned_environments").findOne({ userId });
   const dispatch = await getDispatchState(userId);
 
+  const telegramLinked = Boolean(telegram && !telegram.devStub && !String(telegram.telegramChatId).startsWith("dev-"));
+
   const onboardingStep = resolveOnboardingStep({
     hasSubscription: Boolean(subscription),
     environmentReady: env?.provisionState === "ready",
-    telegramLinked: Boolean(telegram),
+    telegramLinked,
+    relay2faPending: Boolean(user.relay2faPending),
     relayReady: Boolean(user.relayReadyAt),
     agentActive: Boolean(dispatch?.heartbeatAt && !dispatch?.paused),
   });
@@ -40,7 +45,10 @@ export async function getDriverProfile(userId: string): Promise<DriverProfile | 
     userId,
     email: String(user.email),
     onboardingStep,
-    telegramLinked: Boolean(telegram),
+    telegramLinked,
+    telegramDevStub: Boolean(
+      telegram?.devStub || String(telegram?.telegramChatId ?? "").startsWith("dev-"),
+    ),
     paused: dispatch?.paused ?? false,
   };
 }

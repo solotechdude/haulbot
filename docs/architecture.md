@@ -159,7 +159,7 @@ Forward to backend → Telegram push to driver. Driver handles details on Relay 
 ⑤ Extension boots → reports ready → waits
 ⑥ Bot: /connect_relay → Relay credentials via Telegram (vault)
 ⑦ Relay authenticated (+ /2fa if needed) → agent active
-⑧ Driver sets first Goal or Campaign in Telegram
+⑧ Driver sets first Goal or Campaign in Telegram (`/campaign ORIGIN minRate minPayout`)
 ```
 
 Relay credentials enter via Telegram only — not the Subscriber Portal.
@@ -167,18 +167,21 @@ Relay credentials enter via Telegram only — not the Subscriber Portal.
 ## Steady-state loop
 
 ```text
-Driver: /goal or /campaign in Telegram
+Driver: /campaign ORIGIN minRate minPayout  (or /goal)
+        ↓ optional filters → review → Book now
         ↓
 Backend: updates dispatch_state.activeLeg (+ dispatch_plan if needed)
         ↓
 Extension: polls activeLeg → applies Search Criteria on Relay
         ↓
-Extension: evaluates loads → auto-books Hard Rules matches
+Extension: evaluates loads → auto-books Hard Rules matches (Book Priority)
         ↓
 Booking Completion → handoff → next leg
         ↓
 Load Telemetry → Analytics Engine
 ```
+
+See [campaign-bot-flow.md](./campaign-bot-flow.md) for the Telegram wizard, **anywhere** default, and queued-leg readiness behavior.
 
 ## Explicit non-goals
 

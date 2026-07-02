@@ -63,20 +63,20 @@ Load Telemetry to the analytics engine is emitted via the standard extension int
     mode: "goal" | "campaign",
     searchCriteria: {
       origin, destination, radius, heading,
-      minRate, minPayout,
-      workType, driverType, loadType, equipment,
+      boardMinRate, boardMinPayout, wideNet, equipment,
+      workType, driverType, loadType,
       tripDurationMin, tripDurationMax,
       tripDistanceMin, tripDistanceMax
     },
     hardRules: { minRate, minPayout },
-    readinessWindow: ISODate,     // earliest pickup allowed
-    searchOpensAt: ISODate        // proactive search band start
+    bookPriority: "payout_then_rate",
+    readinessWindow: ISODate,
+    searchOpensAt: ISODate
   },
-  commitment: {
-    loadId, origin, destination,
-    deliveryEta, pickupAt,
-    status: "booked" | "picked_up" | "delivered" | "canceled"
-  } | null,
+  commitment: { ... } | null,
+  campaignSessionId: UUID,          // set when Driver arms via Book now
+  campaignStatusPin: { telegramChatId, messageId },
+  agentStatus: { relayWorkState, armed, lastScanSummary, updatedAt },
   heartbeatAt: ISODate,
   updatedAt: ISODate
 }
@@ -147,7 +147,8 @@ No other indexes at launch.
 | Event | Write |
 |---|---|
 | Extension polls | Read `dispatch_states` by userId |
-| Hard Rules match → book + assign | Extension executes; POST decision + booking_completion; backend sets `commitment`, opens `handoff` in plan |
+| Driver sets campaign via Telegram | Bot → `POST /v1/bot/dispatch/campaign` — `/campaign ORIGIN minRate minPayout`; see [campaign-bot-flow.md](./campaign-bot-flow.md) |
+| Hard Rules match → book + assign | Extension executes; POST booking_completion; backend sets `commitment`, opens `handoff` in plan |
 | Driver taps handoff button | Bot → backend patches `dispatch_plans.handoff` |
 | Handoff complete | Backend promotes next leg → `dispatch_states.activeLeg`; clears `handoff` |
 | Load canceled | Extension detects; backend clears `commitment`, recomputes `activeLeg` |

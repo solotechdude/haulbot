@@ -2,6 +2,8 @@
 
 AI dispatch for solo Amazon Relay owner-operators. Drivers control dispatch via Telegram; a dedicated remote agent books loads on Relay.
 
+**Private repo:** https://github.com/solotechdude/relaybooking-solo
+
 ## Docs
 
 - [docs/README.md](./docs/README.md) — planning index
@@ -23,12 +25,33 @@ Chrome extension: separate repo `relaybooking-extension/` (not in this monorepo)
 
 ```bash
 bun install
-cp .env.example .env
-# Start MongoDB locally, then:
+
+# 1. Environment (secrets stay in .env.development.local — gitignored)
+cp .env.example .env.development.local
+
+# 2. Dedicated MongoDB (Docker, port 27019, database relaybooking_solo)
+bun run db:up
+bun run seed:dev
+
+# 3. Backend + website
 bun run dev:backend   # :8080
 bun run dev:website   # :3000
-bun run dev:bot       # polling stub
+
+# 4. Stripe local webhooks (separate terminal — backend must be running)
+bun run stripe:listen
+# Uses Docker stripe/stripe-cli if native CLI is not installed.
+# Copy whsec_... → STRIPE_WEBHOOK_SECRET in .env.development.local
 ```
+
+Other commands: `bun run db:down`, `bun run db:logs`, `bun run dev:bot`
+
+## Campaign command (Telegram)
+
+```text
+/campaign ORIGIN minRate minPayout
+```
+
+Example: `/campaign BRAMPTON 3 200` — searches from Brampton **anywhere** with $3/mi and $200 min payout to book. Optional destination and radius in the bot wizard. See [docs/campaign-bot-flow.md](./docs/campaign-bot-flow.md).
 
 ## Build plan
 

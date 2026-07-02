@@ -1,0 +1,22 @@
+# Dedicated MongoDB for RelayBooking SOLO — isolated from other local projects.
+# Port 27019 avoids clashing with a default MongoDB on 27017.
+
+services:
+  mongodb:
+    image: mongo:7
+    container_name: relaybooking-solo-mongodb
+    restart: unless-stopped
+    ports:
+      - "27019:27017"
+    volumes:
+      - relaybooking_solo_mongo_data:/data/db
+    environment:
+      MONGO_INITDB_DATABASE: relaybooking_solo
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  relaybooking_solo_mongo_data:

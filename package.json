@@ -6,11 +6,19 @@
     "packages/*"
   ],
   "scripts": {
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down",
+    "db:logs": "docker compose logs -f mongodb",
     "dev:backend": "bun run --filter @relaybooking/backend dev",
     "dev:website": "bun run --filter @relaybooking/website dev",
     "dev:bot": "bun run --filter @relaybooking/bot dev",
+    "dev:bot:once": "bun run --filter @relaybooking/bot start",
+    "bot:stop": "pkill -f 'relaybooking-solo/apps/bot' 2>/dev/null || true; pkill -f '@relaybooking/bot' 2>/dev/null || true",
     "dev": "bun run dev:backend & bun run dev:website",
-    "seed:dev": "bun run scripts/seed-dev-user.ts",
+    "seed:dev": "bun run --filter @relaybooking/backend seed:dev",
+    "set:campaign": "bun run --filter @relaybooking/backend set:campaign",
+    "reconcile:stripe": "bun run --filter @relaybooking/backend reconcile:stripe",
+    "stripe:listen": "bash scripts/stripe-listen.sh",
     "typecheck": "bun run --filter '*' typecheck",
     "audit:fallow": "fallow audit --base main --gate new-only --format json --quiet || true"
   },

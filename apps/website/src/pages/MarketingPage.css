@@ -25,3 +25,35 @@
   flex-wrap: wrap;
   gap: var(--space-3);
 }
+
+.hero__subscribe {
+  margin-bottom: var(--space-4);
+  max-width: 24rem;
+}
+
+.hero__label {
+  display: block;
+  font-size: 0.875rem;
+  color: var(--color-muted);
+  margin-bottom: var(--space-2);
+}
+
+.hero__input {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  font: inherit;
+  background: var(--color-surface);
+}
+
+.hero__error {
+  color: #b91c1c;
+  font-size: 0.875rem;
+  margin: var(--space-2) 0 0;
+}
+
+.hero__notice {
+  color: var(--color-muted);
+  margin: 0 0 var(--space-4);
+}

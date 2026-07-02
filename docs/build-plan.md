@@ -43,7 +43,7 @@ Track 4 — Bot + intelligence UX       (T1→T4, I1→I3)   parallel with Track
 | ID | Deliverable |
 |---|---|
 | T1 | Onboarding commands — `/start`, `/connect_relay`, `/2fa` |
-| T2 | Steady-state — `/goal`, `/campaign`, `/status`, `/pause`, `/resume`, `/explain` |
+| T2 | Steady-state — `/goal`, `/campaign ORIGIN minRate minPayout`, `/status`, `/pause`, `/resume`, `/explain` — see [campaign-bot-flow.md](./campaign-bot-flow.md) |
 | T3 | Handoff prompts — inline keyboards, pickup readiness, criteria fine-tune |
 | T4 | Push alerts — booked, canceled, briefing |
 | I1 | Load Telemetry feed to analytics engine (standard interface) |
