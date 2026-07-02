@@ -58,4 +58,14 @@ export async function ensureIndexes(): Promise<void> {
   await db.collection("telegram_links").createIndex({ userId: 1 }, { unique: true });
   await db.collection("telegram_links").createIndex({ telegramChatId: 1 }, { unique: true });
   await db.collection("relay_alerts").createIndex({ userId: 1, createdAt: -1 });
+  await db.collection("load_telemetry").createIndex({ userId: 1, createdAt: -1 });
+  // TTL — local copy only; the analytics engine is the long-term store
+  await db.collection("load_telemetry").createIndex(
+    { createdAt: 1 },
+    { expireAfterSeconds: 30 * 24 * 60 * 60 },
+  );
+  await db.collection("board_health").createIndex(
+    { createdAt: 1 },
+    { expireAfterSeconds: 7 * 24 * 60 * 60 },
+  );
 }

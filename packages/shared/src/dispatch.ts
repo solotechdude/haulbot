@@ -71,6 +71,8 @@ export interface DispatchState {
   campaignStatusPin?: import("./agent-status.js").CampaignStatusPin;
   /** Extension-reported agent activity */
   agentStatus?: import("./agent-status.js").AgentStatus;
+  /** Board refresh tuning — extension falls back to DEFAULT_REFRESH_POLICY when unset */
+  refreshPolicy?: import("./refresh-policy.js").RefreshPolicy;
   heartbeatAt?: string;
   updatedAt: string;
 }

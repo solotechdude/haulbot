@@ -1,8 +1,16 @@
 import { Hono } from "hono";
-import type { ActiveLeg, AgentStatus, CommitmentStatus, DispatchState } from "@relaybooking/shared";
+import type {
+  ActiveLeg,
+  AgentStatus,
+  CommitmentStatus,
+  DispatchState,
+  LoadTelemetryBatch,
+} from "@relaybooking/shared";
+import { resolveRefreshPolicy } from "@relaybooking/shared";
+import { forwardLoadTelemetry } from "../analytics/engine-client";
 import { recordBookingCompletion } from "../booking/completion";
 import { reportExternalBooking } from "../booking/external-adoption";
-import { getDispatchState, upsertDispatchState } from "../db";
+import { getDb, getDispatchState, upsertDispatchState } from "../db";
 import { requireExtensionAuth } from "../middleware/auth";
 import { getDriverProfile } from "../onboarding";
 import { recordRelayAlert, syncTripStatus } from "../relay-alerts/record";
@@ -32,11 +40,13 @@ dispatcherRoutes.get("/state", async (c) => {
       paused: false,
       activeLeg: null,
       commitment: null,
+      refreshPolicy: resolveRefreshPolicy(),
       updatedAt: new Date().toISOString(),
     };
     return c.json(empty);
   }
 
+  state.refreshPolicy = resolveRefreshPolicy(state.refreshPolicy);
   return c.json(state);
 });
 
@@ -199,6 +209,34 @@ dispatcherRoutes.post("/external-booking", async (c) => {
   });
 
   return c.json({ ok: true });
+});
+
+/** I1 — Load Telemetry batch: store locally (TTL) and feed the analytics engine */
+dispatcherRoutes.post("/telemetry", async (c) => {
+  const userId = c.get("userId");
+
+  const body = (await c.req.json<LoadTelemetryBatch>().catch(() => null)) as LoadTelemetryBatch | null;
+  if (!body || !Array.isArray(body.events)) {
+    return c.json({ error: "INVALID_REQUEST" }, 400);
+  }
+  if (body.events.length > 500) return c.json({ error: "BATCH_TOO_LARGE" }, 413);
+
+  const db = await getDb();
+  const createdAt = new Date();
+
+  if (body.events.length > 0) {
+    await db.collection("load_telemetry").insertMany(
+      body.events.map((event) => ({ userId, ...event, createdAt })),
+      { ordered: false },
+    );
+  }
+  if (body.boardHealth) {
+    await db.collection("board_health").insertOne({ userId, ...body.boardHealth, createdAt });
+  }
+
+  void forwardLoadTelemetry(userId, body);
+
+  return c.json({ ok: true, accepted: body.events.length });
 });
 
 /** Upcoming / trips page status sync */

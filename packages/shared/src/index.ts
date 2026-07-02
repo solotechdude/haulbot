@@ -33,3 +33,23 @@ export type {
   HandoffAwaitingField,
   HandoffDraftNextLeg,
 } from "./dispatch-plan";
+export type {
+  RefreshBackoff,
+  RefreshHotWindow,
+  RefreshPolicy,
+} from "./refresh-policy";
+export {
+  DEFAULT_REFRESH_POLICY,
+  nextRefreshDelayMs,
+  resolveRefreshPolicy,
+} from "./refresh-policy";
+export type {
+  BoardHealthSample,
+  LaneInsights,
+  LanePostingWindow,
+  LoadMissReason,
+  LoadSnapshot,
+  LoadTelemetryBatch,
+  LoadTelemetryEvent,
+  LoadTelemetryKind,
+} from "./telemetry";
