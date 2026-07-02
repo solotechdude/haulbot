@@ -15,6 +15,7 @@ import { requireExtensionAuth } from "../middleware/auth";
 import { getDriverProfile } from "../onboarding";
 import { recordRelayAlert, syncTripStatus } from "../relay-alerts/record";
 import { syncCampaignStatusMessage } from "../telegram/campaign-status";
+import { consumeRelay2faCode, getRelayCredentials } from "../vault/relay-secrets";
 
 export const dispatcherRoutes = new Hono();
 
@@ -209,6 +210,26 @@ dispatcherRoutes.post("/external-booking", async (c) => {
   });
 
   return c.json({ ok: true });
+});
+
+/** Dispatch Agent Relay login — secrets come from Vault (dev fallback in dev) */
+dispatcherRoutes.get("/relay-credentials", async (c) => {
+  const userId = c.get("userId");
+
+  const credentials = await getRelayCredentials(userId);
+  if (!credentials) return c.json({ error: "NOT_FOUND" }, 404);
+
+  return c.json(credentials);
+});
+
+/** One-time 2FA code read — consumed on delivery */
+dispatcherRoutes.get("/relay-2fa", async (c) => {
+  const userId = c.get("userId");
+
+  const code = await consumeRelay2faCode(userId);
+  if (!code) return c.json({ error: "NOT_FOUND" }, 404);
+
+  return c.json({ code });
 });
 
 /** I1 — Load Telemetry batch: store locally (TTL) and feed the analytics engine */
