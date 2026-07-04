@@ -10,7 +10,7 @@ alwaysApply: false
 
 - **Bun** for backend, bot, website, and tooling
 - Shared contracts live in `packages/shared` — API types, dispatch shapes, telemetry interface
-- Apps import from `@relaybooking/shared` (or project alias); never copy-paste types across apps
+- Apps import from `@haulbot/shared` (or project alias); never copy-paste types across apps
 
 ## Clean code
 

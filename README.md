@@ -1,8 +1,8 @@
-# RelayBooking SOLO
+# Haulbot
 
 AI dispatch for solo Amazon Relay owner-operators. Drivers control dispatch via Telegram; a dedicated remote agent books loads on Relay.
 
-**Private repo:** https://github.com/solotechdude/relaybooking-solo
+**Private repo:** https://github.com/solotechdude/haulbot
 
 ## Docs
 
@@ -19,7 +19,7 @@ apps/bot/         Telegram thin UI worker (Bun)
 packages/shared/  Types and API contracts
 ```
 
-Chrome extension: separate repo `relaybooking-extension/` (not in this monorepo).
+Chrome extension: separate repo `haulbot-extension/` (not in this monorepo).
 
 ## Local development
 
@@ -29,7 +29,7 @@ bun install
 # 1. Environment (secrets stay in .env.development.local — gitignored)
 cp .env.example .env.development.local
 
-# 2. Dedicated MongoDB (Docker, port 27019, database relaybooking_solo)
+# 2. Dedicated MongoDB (Docker, port 27019, database haulbot)
 bun run db:up
 bun run seed:dev
 

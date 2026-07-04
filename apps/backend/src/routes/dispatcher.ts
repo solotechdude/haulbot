@@ -5,8 +5,8 @@ import type {
   CommitmentStatus,
   DispatchState,
   LoadTelemetryBatch,
-} from "@relaybooking/shared";
-import { resolveRefreshPolicy } from "@relaybooking/shared";
+} from "@haulbot/shared";
+import { resolveRefreshPolicy } from "@haulbot/shared";
 import { forwardLoadTelemetry } from "../analytics/engine-client";
 import { recordBookingCompletion } from "../booking/completion";
 import { reportExternalBooking } from "../booking/external-adoption";
@@ -86,11 +86,13 @@ dispatcherRoutes.patch("/state/heartbeat", async (c) => {
       relayWorkState?: AgentStatus["relayWorkState"];
       armed?: boolean;
       lastScanSummary?: AgentStatus["lastScanSummary"];
+      statusProbeAckAt?: string;
     }>()
     .catch(() => ({}))) as {
     relayWorkState?: AgentStatus["relayWorkState"];
     armed?: boolean;
     lastScanSummary?: AgentStatus["lastScanSummary"];
+    statusProbeAckAt?: string;
   };
 
   const now = new Date().toISOString();
@@ -112,6 +114,11 @@ dispatcherRoutes.patch("/state/heartbeat", async (c) => {
       lastScanSummary: body.lastScanSummary ?? state.agentStatus?.lastScanSummary,
       updatedAt: now,
     };
+  }
+
+  if (body.statusProbeAckAt) {
+    state.statusProbeAckedAt = body.statusProbeAckAt;
+    if (state.statusProbe?.requestedAt === body.statusProbeAckAt) state.statusProbe = null;
   }
 
   state.heartbeatAt = now;

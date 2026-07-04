@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { issueTelegramLinkToken } from "../auth/magic-link";
+import { getDispatchState } from "../db";
 import { requireDriverSession } from "../middleware/auth";
 import { ensureProvisionedIfSubscribed } from "../provisioning";
 import { telegramDeepLinkUrl } from "../telegram/link";
@@ -17,6 +18,27 @@ onboardingRoutes.get("/status", async (c) => {
   if (!profile) return c.json({ error: "NOT_FOUND" }, 404);
 
   return c.json(profile);
+});
+
+onboardingRoutes.get("/agent-status", async (c) => {
+  const userId = c.get("userId");
+  const s = await getDispatchState(userId);
+  if (!s) {
+    return c.json({ running: false, paused: false, trip: null, lastScan: null, alert: null, heartbeatAt: null, updatedAt: null });
+  }
+  const paused = s.paused ?? false;
+  const running = !paused && Boolean(s.agentStatus?.armed);
+  const trip = s.commitment
+    ? { origin: s.commitment.origin, destination: s.commitment.destination, status: s.commitment.status, deliveryEta: s.commitment.deliveryEta ?? null }
+    : null;
+  const scan = s.agentStatus?.lastScanSummary;
+  const lastScan = scan
+    ? { scanned: scan.scanned, booked: scan.booked, at: scan.at }
+    : null;
+  let alert: "reconnect_relay" | "agent_offline" | null = null;
+  if (s.relayAccess) alert = "reconnect_relay";
+  else if (s.watchdogAlert?.kind === "offline") alert = "agent_offline";
+  return c.json({ running, paused, trip, lastScan, alert, heartbeatAt: s.heartbeatAt ?? null, updatedAt: s.updatedAt ?? null });
 });
 
 onboardingRoutes.get("/telegram-deeplink", async (c) => {

@@ -1,6 +1,6 @@
 # Architecture-First Development Protocol (AFDP)
 
-Single protocol for all AI and human development on RelayBooking SOLO.
+Single protocol for all AI and human development on Haulbot.
 
 **Agents are codebase maintainers, not local optimizers.** Analyze before code. Remove obsolete code after. Success is a simpler codebase — not more lines.
 

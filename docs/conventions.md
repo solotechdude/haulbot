@@ -1,6 +1,6 @@
 # Conventions
 
-How we write code for RelayBooking SOLO. Cursor rules in [`.cursor/rules/`](../.cursor/rules/) enforce these during development.
+How we write code for Haulbot. Cursor rules in [`.cursor/rules/`](../.cursor/rules/) enforce these during development.
 
 ## Principles
 
@@ -26,7 +26,7 @@ apps/bot/         Telegram thin UI
 packages/shared/  types, API contracts (only cross-app import)
 ```
 
-Extension lives in separate repo `relaybooking-extension/`.
+Extension lives in separate repo `haulbot-extension/`.
 
 ## UI
 

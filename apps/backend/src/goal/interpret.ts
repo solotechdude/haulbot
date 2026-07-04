@@ -1,4 +1,4 @@
-import type { GoalContext, HardRules } from "@relaybooking/shared";
+import type { GoalContext, HardRules } from "@haulbot/shared";
 
 /**
  * Goal mode (O3) — deterministic NL interpretation. Extracts revenue target,

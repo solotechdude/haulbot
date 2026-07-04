@@ -1,5 +1,5 @@
 {
-  "name": "@relaybooking/backend",
+  "name": "@haulbot/backend",
   "version": "0.0.1",
   "private": true,
   "type": "module",
@@ -13,9 +13,10 @@
   },
   "dependencies": {
     "@aws-sdk/client-workspaces-web": "^3.1078.0",
-    "@relaybooking/shared": "workspace:*",
+    "@haulbot/shared": "workspace:*",
     "hono": "^4.7.2",
     "mongodb": "^6.13.0",
+    "resend": "^6.17.1",
     "stripe": "^17.7.0"
   }
 }

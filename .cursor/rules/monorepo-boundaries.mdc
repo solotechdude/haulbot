@@ -11,7 +11,7 @@ apps/website  ──┐
 apps/backend  ──┼──→  packages/shared  ←── types, API contracts, constants
 apps/bot      ──┘
 
-relaybooking-extension/  (separate repo — never imported by apps)
+haulbot-extension/  (separate repo — never imported by apps)
 ```
 
 ## Allowed

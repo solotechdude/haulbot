@@ -1,4 +1,4 @@
-import type { DriverProfile, OnboardingStep } from "@relaybooking/shared";
+import type { DriverProfile, OnboardingStep } from "@haulbot/shared";
 import { getDispatchState } from "./db";
 
 export function resolveOnboardingStep(input: {

@@ -1,4 +1,4 @@
-# RelayBooking SOLO — Documentation
+# Haulbot — Documentation
 
 Planning docs for the AI dispatch product. Domain language lives in [`CONTEXT.md`](../CONTEXT.md) at the repo root.
 

@@ -97,7 +97,7 @@ After a book, the Driver picks pickup time (+1h, +3h, etc.). That leg queues wit
 # Telegram flow (preferred)
 /campaign BRAMPTON 3 200
 
-# Direct DB seed (bypasses bot) — relaybooking-solo
+# Direct DB seed (bypasses bot) — haulbot
 bun run set:campaign aj@truckpin.com BRAMPTON 3 200
 # Optional 4th arg: destination (omit or same as origin = anywhere)
 bun run set:campaign aj@truckpin.com BRAMPTON 3 200 ATL

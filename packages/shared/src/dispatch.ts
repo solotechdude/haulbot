@@ -77,6 +77,10 @@ export interface DispatchState {
   relayAccess?: import("./relay-access.js").RelayAccessIssue | null;
   /** When the current leg was armed — watchdog anchor for "armed but never scanned" */
   armedAt?: string;
+  /** Bot-requested live status check — extension answers with a fresh page check + heartbeat ack */
+  statusProbe?: { requestedAt: string } | null;
+  /** requestedAt of the last probe the extension acknowledged */
+  statusProbeAckedAt?: string | null;
   /** Unresolved agent-health alert raised by the backend watchdog */
   watchdogAlert?: { kind: "offline" | "scan_stalled"; at: string } | null;
   heartbeatAt?: string;

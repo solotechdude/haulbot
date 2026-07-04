@@ -1,5 +1,5 @@
-import type { AgentStatus, DispatchState } from "@relaybooking/shared";
-import { formatCampaignStatusMessage } from "@relaybooking/shared";
+import type { AgentStatus, DispatchState } from "@haulbot/shared";
+import { formatCampaignStatusMessage } from "@haulbot/shared";
 import { editTelegramMessage } from "./notify";
 
 export async function syncCampaignStatusMessage(

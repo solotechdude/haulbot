@@ -1,6 +1,6 @@
-import type { DispatchPlan, DispatchState } from "@relaybooking/shared";
+import type { DispatchPlan, DispatchState } from "@haulbot/shared";
 
-const uri = process.env.MONGODB_URI ?? "mongodb://127.0.0.1:27019/relaybooking_solo";
+const uri = process.env.MONGODB_URI ?? "mongodb://127.0.0.1:27019/haulbot";
 
 let client: import("mongodb").MongoClient | null = null;
 

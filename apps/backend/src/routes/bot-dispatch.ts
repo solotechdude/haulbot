@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import type { ActiveLeg } from "@relaybooking/shared";
+import type { ActiveLeg } from "@haulbot/shared";
 import { completeCommitment } from "../booking/complete-commitment";
 import { adoptPendingBooking, dismissPendingAdoption } from "../booking/external-adoption";
 import {
@@ -18,17 +18,63 @@ export const botDispatchRoutes = new Hono();
 
 botDispatchRoutes.use("*", requireServiceToken());
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+/** Extension polls every ~5s, may navigate to the load board (~15s) before acking. */
+const PROBE_WAIT_MS = 25_000;
+const PROBE_POLL_MS = 1_000;
+
+/**
+ * Live status probe — the driver must never be shown stale state. Sets
+ * statusProbe on dispatch_states; the extension picks it up on its next
+ * poll, re-checks the load board for real (navigating there if needed),
+ * and acks via heartbeat. Returns the post-check state.
+ */
+async function runStatusProbe(
+  userId: string,
+): Promise<{ live: "confirmed" | "unreachable"; state: Awaited<ReturnType<typeof getDispatchState>> }> {
+  const existing = await getDispatchState(userId);
+  if (!existing) return { live: "unreachable", state: existing };
+
+  const requestedAt = new Date().toISOString();
+  existing.statusProbe = { requestedAt };
+  existing.updatedAt = requestedAt;
+  await upsertDispatchState(existing);
+
+  const deadline = Date.now() + PROBE_WAIT_MS;
+  while (Date.now() < deadline) {
+    await sleep(PROBE_POLL_MS);
+    const current = await getDispatchState(userId);
+    if (current?.statusProbeAckedAt && current.statusProbeAckedAt >= requestedAt) {
+      return { live: "confirmed", state: current };
+    }
+  }
+
+  return { live: "unreachable", state: await getDispatchState(userId) };
+}
+
 botDispatchRoutes.get("/status/:userId", async (c) => {
   const userId = c.req.param("userId");
   const profile = await getDriverProfile(userId);
   if (!profile) return c.json({ error: "NOT_FOUND" }, 404);
 
-  const state = await getDispatchState(userId);
+  let state = await getDispatchState(userId);
+  let live: "confirmed" | "unreachable" | null = null;
+
+  if (c.req.query("fresh") === "1") {
+    const probe = await runStatusProbe(userId);
+    live = probe.live;
+    state = probe.state ?? state;
+  }
+
   const handoff = await getPendingHandoff(userId);
   return c.json({
     profile,
     dispatch: state ?? { paused: false, activeLeg: null, commitment: null },
     handoff,
+    live,
   });
 });
 

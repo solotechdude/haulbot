@@ -1,5 +1,5 @@
 {
-  "name": "@relaybooking/bot",
+  "name": "@haulbot/bot",
   "version": "0.0.1",
   "private": true,
   "type": "module",
@@ -9,7 +9,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@relaybooking/shared": "workspace:*",
+    "@haulbot/shared": "workspace:*",
     "grammy": "^1.35.0"
   }
 }

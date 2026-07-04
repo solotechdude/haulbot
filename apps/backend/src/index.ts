@@ -32,7 +32,7 @@ app.use("*", async (c, next) => {
   return logger()(c, next);
 });
 
-app.get("/health", (c) => c.json({ ok: true, service: "relaybooking-backend" }));
+app.get("/health", (c) => c.json({ ok: true, service: "haulbot-backend" }));
 
 const publicRateLimit = rateLimit({ windowMs: 60_000, max: 20 });
 
@@ -61,4 +61,8 @@ console.log(`[backend] listening on :${port}`);
 export default {
   port,
   fetch: app.fetch,
+  // Live status probes (/v1/bot/dispatch/status?fresh=1) hold the request up
+  // to 25s while the extension re-checks the load board — Bun's default 10s
+  // idleTimeout would kill them mid-wait.
+  idleTimeout: 40,
 };

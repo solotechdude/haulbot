@@ -1,4 +1,4 @@
-import type { Commitment, PendingAdoption } from "@relaybooking/shared";
+import type { Commitment, PendingAdoption } from "@haulbot/shared";
 import { getDispatchState, upsertDispatchState } from "../db";
 import { sendTelegramMessage } from "../telegram/notify";
 

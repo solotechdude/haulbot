@@ -1,5 +1,5 @@
-import type { DispatchState } from "@relaybooking/shared";
-import { formatRouteLabel } from "@relaybooking/shared";
+import type { DispatchState } from "@haulbot/shared";
+import { formatRouteLabel } from "@haulbot/shared";
 import { getDb, upsertDispatchState } from "./db";
 import { sendTelegramMessage } from "./telegram/notify";
 
@@ -42,6 +42,24 @@ export function evaluateAgentHealth(state: DispatchState, now: Date): AgentHealt
   if (anchor > 0 && now.getTime() - anchor > SCAN_STALL_MS) return "scan_stalled";
 
   return null;
+}
+
+/**
+ * "Your agent is back" must only go out when scanning genuinely resumed.
+ * evaluateAgentHealth also returns null on handover (relay-access flow owns
+ * the incident) or when scanning is no longer expected (paused, commitment,
+ * leg cleared) — announcing recovery there would lie to the driver while a
+ * permissions wall is still up. The relay-access flow sends its own
+ * "Relay access restored" message when that incident actually clears.
+ */
+export function shouldAnnounceRecovery(state: DispatchState): boolean {
+  return Boolean(
+    !state.paused &&
+      state.activeLeg &&
+      state.campaignSessionId &&
+      !state.commitment &&
+      !state.relayAccess,
+  );
 }
 
 function driverMessageForStall(kind: AgentHealthIssue, state: DispatchState): string {
@@ -101,11 +119,18 @@ async function checkAllAgents(now: Date): Promise<void> {
       state.updatedAt = now.toISOString();
       await upsertDispatchState(state);
 
-      await sendTelegramMessage(
-        state.userId,
-        "Your agent is back — load board scanning resumed.",
-      );
-      console.log("[watchdog] recovered for user %s", state.userId);
+      if (shouldAnnounceRecovery(state)) {
+        await sendTelegramMessage(
+          state.userId,
+          "Your agent is back — load board scanning resumed.",
+        );
+        console.log("[watchdog] recovered for user %s", state.userId);
+      } else {
+        console.log(
+          "[watchdog] alert cleared without recovery message for user %s (handover or leg gone)",
+          state.userId,
+        );
+      }
     }
   }
 }

@@ -1,5 +1,5 @@
-import type { ActiveLeg, Commitment, DispatchState } from "@relaybooking/shared";
-import { DEFAULT_REFRESH_POLICY } from "@relaybooking/shared";
+import type { ActiveLeg, Commitment, DispatchState } from "@haulbot/shared";
+import { DEFAULT_REFRESH_POLICY } from "@haulbot/shared";
 import { fetchLaneInsights, postingWindowsToHotWindows } from "../analytics/engine-client";
 import { getDispatchState, upsertDispatchState } from "../db";
 import { dismissHandoff } from "../booking/handoff";

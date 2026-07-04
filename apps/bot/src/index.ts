@@ -62,7 +62,7 @@ if (webhookUrl) {
         return handleUpdate(req);
       }
       if (url.pathname === "/health") {
-        return Response.json({ ok: true, service: "relaybooking-bot", mode: "webhook" });
+        return Response.json({ ok: true, service: "haulbot-bot", mode: "webhook" });
       }
       return new Response("Not found", { status: 404 });
     },

@@ -39,7 +39,7 @@ export const awsWorkspacesWebDriver: EnvironmentDriver = {
         instanceType: "standard.regular",
         maxConcurrentSessions: 1,
         tags: [
-          { Key: "product", Value: "relaybooking-solo" },
+          { Key: "product", Value: "haulbot" },
           { Key: "userId", Value: userId },
         ],
       }),

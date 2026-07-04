@@ -20,20 +20,40 @@ export async function upsertSubscriptionFromStripe(subscription: Stripe.Subscrip
   }
 
   const now = new Date().toISOString();
+
+  // Stripe moved `current_period_end` off the subscription and onto its items
+  // in newer API versions, so read both locations defensively without relying
+  // on a specific SDK type shape.
+  const sub = subscription as unknown as {
+    current_period_end?: unknown;
+    items?: { data?: Array<{ current_period_end?: unknown }> };
+  };
+  const rawPeriodEnd =
+    typeof sub.current_period_end === "number"
+      ? sub.current_period_end
+      : sub.items?.data?.[0]?.current_period_end;
+  const periodEndSeconds = typeof rawPeriodEnd === "number" ? rawPeriodEnd : undefined;
+
+  const set: Record<string, unknown> = {
+    userId,
+    plan: "SOLO",
+    status: mapStripeStatus(subscription.status),
+    stripeSubscriptionId: subscription.id,
+    stripeCustomerId:
+      typeof subscription.customer === "string"
+        ? subscription.customer
+        : subscription.customer.id,
+    cancelAtPeriodEnd: subscription.cancel_at_period_end ?? false,
+    updatedAt: now,
+  };
+  if (periodEndSeconds !== undefined && Number.isFinite(periodEndSeconds)) {
+    set.currentPeriodEnd = new Date(periodEndSeconds * 1000).toISOString();
+  }
+
   await db.collection("subscriptions").updateOne(
     { userId },
     {
-      $set: {
-        userId,
-        plan: "SOLO",
-        status: mapStripeStatus(subscription.status),
-        stripeSubscriptionId: subscription.id,
-        stripeCustomerId:
-          typeof subscription.customer === "string"
-            ? subscription.customer
-            : subscription.customer.id,
-        updatedAt: now,
-      },
+      $set: set,
       $setOnInsert: { createdAt: now },
     },
     { upsert: true },

@@ -19,7 +19,7 @@ export function registerOnboardingHandlers(bot: Bot): void {
         });
         clearSession(ctx.chat.id);
         await ctx.reply(
-          "Telegram connected to your RelayBooking SOLO account.\n\nNext: /connect_relay to link your Amazon Relay credentials.",
+          "Telegram connected to your Haulbot account.\n\nNext: /connect_relay to link your Amazon Relay credentials.",
         );
         console.log("[bot] linked", userId, chatId);
       } catch {
@@ -29,7 +29,7 @@ export function registerOnboardingHandlers(bot: Bot): void {
     }
 
     await ctx.reply(
-      "Welcome to RelayBooking SOLO.\n\nOpen your Subscriber Portal at relaybooking.com/solo and tap Connect Telegram to link this chat.",
+      "Welcome to Haulbot.\n\nOpen your Subscriber Portal at haulbot.online/solo and tap Connect Telegram to link this chat.",
     );
   });
 

@@ -1,4 +1,4 @@
-import type { LaneInsights, LoadTelemetryBatch, RefreshHotWindow } from "@relaybooking/shared";
+import type { LaneInsights, LoadTelemetryBatch, RefreshHotWindow } from "@haulbot/shared";
 
 /**
  * Load Analytics Engine client — external multi-product platform

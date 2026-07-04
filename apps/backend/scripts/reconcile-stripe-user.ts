@@ -5,7 +5,7 @@ import { MongoClient } from "mongodb";
 import Stripe from "stripe";
 
 const email = process.argv[2] ?? "aj@truckpin.com";
-const uri = process.env.MONGODB_URI ?? "mongodb://127.0.0.1:27019/relaybooking_solo";
+const uri = process.env.MONGODB_URI ?? "mongodb://127.0.0.1:27019/haulbot";
 const stripeKey = process.env.STRIPE_SECRET_KEY;
 
 if (!stripeKey) {

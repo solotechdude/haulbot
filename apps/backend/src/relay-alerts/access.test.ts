@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { formatCampaignStatusMessage } from "@relaybooking/shared";
+import { formatCampaignStatusMessage } from "@haulbot/shared";
 import { driverMessageForAccessIssue } from "./access";
 
 describe("driverMessageForAccessIssue", () => {
@@ -16,6 +16,13 @@ describe("driverMessageForAccessIssue", () => {
 
   test("login_failed points at /connect_relay", () => {
     expect(driverMessageForAccessIssue("login_failed")).toContain("/connect_relay");
+  });
+
+  test("session_expired tells the driver to sign in and promises auto-resume", () => {
+    const msg = driverMessageForAccessIssue("session_expired");
+    expect(msg).toContain("signed out");
+    expect(msg.toLowerCase()).toContain("sign back in");
+    expect(msg).toContain("resumes automatically");
   });
 });
 

@@ -1,4 +1,4 @@
-import type { RelayAccessIssue, RelayAccessIssueKind } from "@relaybooking/shared";
+import type { RelayAccessIssue, RelayAccessIssueKind } from "@haulbot/shared";
 import { getDb, getDispatchState, upsertDispatchState } from "../db";
 import { syncCampaignStatusMessage } from "../telegram/campaign-status";
 import { sendTelegramMessage } from "../telegram/notify";
@@ -20,8 +20,10 @@ export function driverMessageForAccessIssue(kind: RelayAccessIssueKind): string 
       );
     case "session_expired":
       return (
-        "Relay signed your agent out. Signing back in with your saved credentials…\n" +
-        "You'll get another message if anything is needed from you."
+        "Your Amazon Relay session is signed out, so no loads are being searched.\n\n" +
+        "Sign back in to Amazon Relay in your dispatch browser (the load board must be " +
+        "reachable at relay.amazon.com/loadboard/search). Searching resumes automatically " +
+        "once you're signed in."
       );
     case "login_failed":
       return (
@@ -43,8 +45,14 @@ export function driverMessageForAccessIssue(kind: RelayAccessIssueKind): string 
   }
 }
 
-/** Kinds that only matter to the Driver if they persist — no instant ping. */
-const QUIET_KINDS: RelayAccessIssueKind[] = ["session_expired"];
+/**
+ * Kinds resolved silently without pinging the Driver. Empty: every blocking
+ * state the extension reports is one it verified on the load board and cannot
+ * fix on its own (no auto-login), so the Driver must always be told — never
+ * left thinking the agent is searching. reportRelayAccessIssue dedupes by
+ * kind, so this is one message per incident, not per poll.
+ */
+const QUIET_KINDS: RelayAccessIssueKind[] = [];
 
 export async function reportRelayAccessIssue(
   userId: string,

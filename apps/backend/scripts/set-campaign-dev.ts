@@ -15,9 +15,9 @@
  */
 
 import { MongoClient } from "mongodb";
-import type { ActiveLeg } from "@relaybooking/shared";
+import type { ActiveLeg } from "@haulbot/shared";
 
-const uri = process.env.MONGODB_URI ?? "mongodb://127.0.0.1:27019/relaybooking_solo";
+const uri = process.env.MONGODB_URI ?? "mongodb://127.0.0.1:27019/haulbot";
 const email = process.argv[2] ?? "aj@truckpin.com";
 const origin = (process.argv[3] ?? "DFW").toUpperCase();
 const minRate = process.argv[4] != null ? Number(process.argv[4]) : 2.5;

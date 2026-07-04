@@ -1,5 +1,5 @@
 import { InlineKeyboard, type Bot } from "grammy";
-import { formatCampaignStatusMessage, formatRouteLabel } from "@relaybooking/shared";
+import { formatCampaignStatusMessage, formatRouteLabel } from "@haulbot/shared";
 import * as api from "../api";
 import { formatReadiness, readinessFromPreset } from "../format";
 import { requireLinkedCallbackUser, requireLinkedUser } from "../linked-user";
@@ -130,7 +130,7 @@ function readinessKeyboard(): InlineKeyboard {
 export function registerDispatchHandlers(bot: Bot): void {
   bot.command("help", async (ctx) => {
     await ctx.reply(
-      "RelayBooking SOLO commands:\n\n" +
+      "Haulbot commands:\n\n" +
         "/goal <objective> — e.g. /goal $8k this week, Atlanta by Thursday\n" +
         "/campaign ORIGIN minRate minPayout — search & book (defaults to anywhere)\n" +
         "/complete [tripId] — mark current trip done\n" +
@@ -520,21 +520,27 @@ export function registerDispatchHandlers(bot: Bot): void {
       leg?.readinessWindow && new Date(leg.readinessWindow).getTime() > Date.now()
         ? `\nPickup ready: ${formatReadiness(leg.readinessWindow)}`
         : "";
-    // Honest extension line — "armed" alone is a lie when nothing is scanning
+    // Honest extension line — "armed" alone is a lie when nothing is scanning.
+    // live === "confirmed" means the agent just re-checked the load board;
+    // live === "unreachable" means it did not answer the probe at all.
     const heartbeatFresh =
       dispatch.heartbeatAt && Date.now() - new Date(dispatch.heartbeatAt).getTime() < 2 * 60 * 1000;
     const armLine = leg
-      ? dispatch.relayAccess
-        ? "\nExtension: BLOCKED — Relay access issue, not searching"
-        : dispatch.watchdogAlert?.kind === "offline" || (dispatch.campaignSessionId && !heartbeatFresh)
-          ? "\nExtension: OFFLINE — not searching (no recent check-in)"
-          : dispatch.watchdogAlert?.kind === "scan_stalled"
-            ? "\nExtension: STALLED — armed but no scans completing, check Relay access"
-            : dispatch.campaignSessionId
-              ? "\nExtension: armed and searching"
-              : commitment
-                ? "\nExtension: queued — /complete current trip to arm"
-                : "\nExtension: not armed — /campaign → Book now"
+      ? status.live === "unreachable"
+        ? "\nExtension: OFFLINE — did not respond to live check, not searching"
+        : dispatch.relayAccess
+          ? "\nExtension: BLOCKED — Relay access issue, not searching"
+          : dispatch.watchdogAlert?.kind === "offline" || (dispatch.campaignSessionId && !heartbeatFresh)
+            ? "\nExtension: OFFLINE — not searching (no recent check-in)"
+            : dispatch.watchdogAlert?.kind === "scan_stalled"
+              ? "\nExtension: STALLED — armed but no scans completing, check Relay access"
+              : dispatch.campaignSessionId
+                ? status.live === "confirmed"
+                  ? "\nExtension: armed and searching (load board verified just now)"
+                  : "\nExtension: armed and searching"
+                : commitment
+                  ? "\nExtension: queued — /complete current trip to arm"
+                  : "\nExtension: not armed — /campaign → Book now"
       : "";
     const accessLine = dispatch.relayAccess
       ? `\nRelay access: ${RELAY_ACCESS_STATUS[dispatch.relayAccess.kind] ?? `blocked (${dispatch.relayAccess.kind})`}`
@@ -548,15 +554,42 @@ export function registerDispatchHandlers(bot: Bot): void {
     );
   }
 
+  /** Live status: probe the extension first so the driver never sees stale state. */
+  async function replyWithFreshStatus(
+    userId: string,
+    reply: (text: string) => Promise<unknown>,
+  ): Promise<void> {
+    let current: api.DispatchStatus | null = null;
+    try {
+      current = await api.getDispatchStatus(userId);
+    } catch {
+      await reply("Could not load status.");
+      return;
+    }
+
+    // Nothing armed/active — no live check needed, last known state is the state.
+    const agentActive = Boolean(current.dispatch.activeLeg || current.dispatch.campaignSessionId);
+    if (!agentActive) {
+      await reply(formatStatusText(current));
+      return;
+    }
+
+    await reply("Checking your agent live — this can take up to half a minute…");
+    try {
+      await reply(formatStatusText(await api.getDispatchStatus(userId, { fresh: true })));
+    } catch {
+      // Probe path failed (backend restart, timeout) — degrade honestly.
+      await reply(
+        `Live check failed — showing last known state, it may be stale:\n\n${formatStatusText(current)}`,
+      );
+    }
+  }
+
   bot.callbackQuery(/^status:/, async (ctx) => {
     const linked = await requireLinkedCallbackUser(ctx);
     if (!linked) return;
 
-    try {
-      await ctx.reply(formatStatusText(await api.getDispatchStatus(linked.userId)));
-    } catch {
-      await ctx.reply("Could not load status.");
-    }
+    await replyWithFreshStatus(linked.userId, (t) => ctx.reply(t));
   });
 
   bot.command("status", async (ctx) => {
@@ -566,11 +599,7 @@ export function registerDispatchHandlers(bot: Bot): void {
       return;
     }
 
-    try {
-      await ctx.reply(formatStatusText(await api.getDispatchStatus(userId)));
-    } catch {
-      await ctx.reply("Could not load status.");
-    }
+    await replyWithFreshStatus(userId, (t) => ctx.reply(t));
   });
 
   bot.command("pause", async (ctx) => {

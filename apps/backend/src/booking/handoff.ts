@@ -1,4 +1,4 @@
-import type { ActiveLeg, DispatchHandoff } from "@relaybooking/shared";
+import type { ActiveLeg, DispatchHandoff } from "@haulbot/shared";
 import { fetchLaneInsights } from "../analytics/engine-client";
 import { getDispatchPlan, getDispatchState, upsertDispatchPlan, upsertDispatchState } from "../db";
 

@@ -1,5 +1,5 @@
 import { type Bot } from "grammy";
-import { formatRouteLabel } from "@relaybooking/shared";
+import { formatRouteLabel } from "@haulbot/shared";
 import * as api from "../api";
 import { formatReadiness, readinessFromPreset } from "../format";
 import { requireLinkedCallbackUser } from "../linked-user";

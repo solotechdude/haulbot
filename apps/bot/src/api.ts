@@ -72,6 +72,8 @@ export interface DispatchStatus {
     heartbeatAt?: string;
   };
   handoff?: HandoffSummary | null;
+  /** Set on fresh=1 requests: did the extension answer the live probe? */
+  live?: "confirmed" | "unreachable" | null;
 }
 
 export async function linkTelegram(input: {
@@ -190,8 +192,16 @@ export async function updateHandoffDraft(
   return post("/v1/bot/dispatch/handoff/draft", { userId, ...input }, "handoff draft");
 }
 
-export async function getDispatchStatus(userId: string): Promise<DispatchStatus> {
-  return get(`/v1/bot/dispatch/status/${encodeURIComponent(userId)}`, "status");
+/**
+ * fresh=true asks the backend to probe the extension for a live load board
+ * check before answering — can take up to ~25s while the agent verifies.
+ */
+export async function getDispatchStatus(
+  userId: string,
+  options: { fresh?: boolean } = {},
+): Promise<DispatchStatus> {
+  const query = options.fresh ? "?fresh=1" : "";
+  return get(`/v1/bot/dispatch/status/${encodeURIComponent(userId)}${query}`, "status");
 }
 
 export async function setPaused(userId: string, paused: boolean): Promise<void> {

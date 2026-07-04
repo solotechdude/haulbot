@@ -4,10 +4,10 @@
 import { MongoClient } from "mongodb";
 
 const uri =
-  process.env.MONGODB_URI ?? "mongodb://127.0.0.1:27019/relaybooking_solo";
+  process.env.MONGODB_URI ?? "mongodb://127.0.0.1:27019/haulbot";
 
 const userId = "dev-user-1";
-const email = "dev@relaybooking.local";
+const email = "dev@haulbot.local";
 const now = new Date().toISOString();
 
 const client = new MongoClient(uri);

@@ -1,4 +1,4 @@
-# RelayBooking SOLO
+# Haulbot
 
 An AI dispatch service for solo Amazon Relay owner-operators. The driver sets objectives; a dedicated remote agent searches and books loads on their behalf while they drive.
 

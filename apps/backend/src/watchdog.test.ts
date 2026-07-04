@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import type { DispatchState } from "@relaybooking/shared";
-import { evaluateAgentHealth } from "./watchdog";
+import type { DispatchState } from "@haulbot/shared";
+import { evaluateAgentHealth, shouldAnnounceRecovery } from "./watchdog";
 
 const NOW = new Date("2026-07-02T12:00:00Z");
 
@@ -87,5 +87,36 @@ describe("evaluateAgentHealth", () => {
 
   test("no alert when not armed", () => {
     expect(evaluateAgentHealth(armedState({ campaignSessionId: null }), NOW)).toBeNull();
+  });
+});
+
+describe("shouldAnnounceRecovery", () => {
+  test("announces when armed and genuinely healthy again", () => {
+    expect(shouldAnnounceRecovery(armedState())).toBe(true);
+  });
+
+  test("silent when relay-access flow owns the incident (stalled → blocked handover)", () => {
+    // The false "agent is back" bug: watchdog alert clears because relayAccess
+    // was set, but the permissions wall is still up — no recovery message.
+    const state = armedState({
+      relayAccess: { kind: "permission_denied", detectedAt: minutesAgo(1) },
+    });
+    expect(shouldAnnounceRecovery(state)).toBe(false);
+  });
+
+  test("silent when the driver paused the agent", () => {
+    expect(shouldAnnounceRecovery(armedState({ paused: true }))).toBe(false);
+  });
+
+  test("silent when the leg was cleared or disarmed", () => {
+    expect(shouldAnnounceRecovery(armedState({ activeLeg: null }))).toBe(false);
+    expect(shouldAnnounceRecovery(armedState({ campaignSessionId: null }))).toBe(false);
+  });
+
+  test("silent when a commitment landed (scanning no longer expected)", () => {
+    const state = armedState({
+      commitment: { loadId: "T-1", origin: "A", destination: "B", status: "booked" },
+    });
+    expect(shouldAnnounceRecovery(state)).toBe(false);
   });
 });

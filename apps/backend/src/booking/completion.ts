@@ -1,4 +1,4 @@
-import type { Commitment } from "@relaybooking/shared";
+import type { Commitment } from "@haulbot/shared";
 import { getDb, getDispatchState, upsertDispatchState } from "../db";
 import { sendTelegramMessage } from "../telegram/notify";
 import { openHandoffOnBook } from "./handoff";

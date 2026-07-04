@@ -1,5 +1,5 @@
 {
-  "name": "@relaybooking/website",
+  "name": "@haulbot/website",
   "version": "0.0.1",
   "private": true,
   "type": "module",
@@ -10,7 +10,9 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@relaybooking/shared": "workspace:*",
+    "@fontsource-variable/geist-mono": "^5.2.8",
+    "@fontsource-variable/instrument-sans": "^5.2.8",
+    "@haulbot/shared": "workspace:*",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-router-dom": "^7.1.5"

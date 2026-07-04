@@ -48,7 +48,7 @@ Extension (AWS Secure Browser) ── Load Telemetry (standard interface)
 Hybrid monorepo — backend, website, and bot together; extension separate.
 
 ```text
-relaybooking-solo/              monorepo
+haulbot/                       monorepo
   apps/website/                 DO App
   apps/backend/                 DO App
   apps/bot/                     DO App worker
@@ -56,7 +56,7 @@ relaybooking-solo/              monorepo
   docs/                         planning docs
   CONTEXT.md                    domain glossary
 
-relaybooking-extension/         separate repo
+haulbot-extension/              separate repo
   dist/ → S3 solo channel
 ```
 

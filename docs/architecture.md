@@ -1,6 +1,6 @@
 # Architecture
 
-RelayBooking SOLO is a remote dispatch platform. Telegram is the driver interface; AWS Secure Browser is the execution environment. The backend orchestrates everything.
+Haulbot is a remote dispatch platform. Telegram is the driver interface; AWS Secure Browser is the execution environment. The backend orchestrates everything.
 
 See [`CONTEXT.md`](../CONTEXT.md) for domain terms.
 

@@ -1,4 +1,4 @@
-import type { ActiveLeg, Commitment, GoalContext } from "@relaybooking/shared";
+import type { ActiveLeg, Commitment, GoalContext } from "@haulbot/shared";
 import { armActiveLeg } from "../dispatch/arm-leg";
 import { getDb, getDispatchPlan, getDispatchState, upsertDispatchPlan } from "../db";
 import { hardRulesFromGoal, interpretGoal } from "./interpret";

@@ -5,7 +5,7 @@ import { Card } from "../components/ui/Card";
 import "../components/ui/Button.css";
 import "./AdminPage.css";
 
-const ADMIN_TOKEN_KEY = "relaybooking_admin_token";
+const ADMIN_TOKEN_KEY = "haulbot_admin_token";
 const HEARTBEAT_FRESH_MS = 2 * 60 * 1000;
 
 interface CustomerRow {
