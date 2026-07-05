@@ -160,10 +160,9 @@ envs:
 
 services:
   - name: backend
-    github:
-      repo: solotechdude/haulbot
+    git:
+      repo_clone_url: https://github.com/solotechdude/haulbot.git
       branch: cursor/production-readiness-e0ba
-      deploy_on_push: true
     build_command: bun install
     run_command: bun run --filter @haulbot/backend start:prod
     environment_slug: bun
@@ -177,10 +176,9 @@ services:
       http_path: /health
 
   - name: bot
-    github:
-      repo: solotechdude/haulbot
+    git:
+      repo_clone_url: https://github.com/solotechdude/haulbot.git
       branch: cursor/production-readiness-e0ba
-      deploy_on_push: true
     build_command: bun install
     run_command: bun run --filter @haulbot/bot start:prod
     environment_slug: bun
@@ -195,10 +193,9 @@ services:
 
 static_sites:
   - name: website
-    github:
-      repo: solotechdude/haulbot
+    git:
+      repo_clone_url: https://github.com/solotechdude/haulbot.git
       branch: cursor/production-readiness-e0ba
-      deploy_on_push: true
     build_command: bun install && bun run --filter @haulbot/website build
     output_dir: apps/website/dist
     catchall_document: index.html

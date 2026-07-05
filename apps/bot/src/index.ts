@@ -55,7 +55,11 @@ if (webhookUrl) {
   const path = new URL(webhookUrl).pathname;
 
   await bot.init();
-  await bot.api.setWebhook(webhookUrl, { secret_token: secretToken });
+  try {
+    await bot.api.setWebhook(webhookUrl, { secret_token: secretToken });
+  } catch (err) {
+    console.warn("[bot] setWebhook failed — DNS may not be live yet:", (err as Error).message);
+  }
 
   const handleUpdate = webhookCallback(bot, "std/http", { secretToken });
 
