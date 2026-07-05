@@ -52,7 +52,7 @@ envs:
     value: agent_haulbot
     scope: RUN_AND_BUILD_TIME
   - key: TELEGRAM_WEBHOOK_URL
-    value: https://api.haulbot.online/telegram/webhook
+    value: https://haulbot-6w83u.ondigitalocean.app/telegram/webhook
     scope: RUN_TIME
   - key: TELEGRAM_MINI_APP_URL
     value: https://haulbot.online/telegram/location.html
@@ -202,17 +202,23 @@ static_sites:
 
 ingress:
   rules:
-    # Telegram webhook → bot service
+    # Telegram webhook (all hostnames)
     - match:
-        authority:
-          exact: api.haulbot.online
         path:
           prefix: /telegram/webhook
       component:
         name: bot
         preserve_path_prefix: true
 
-    # Extension + bot API → backend
+    # Browser BFF on marketing domain + default DO URL
+    - match:
+        path:
+          prefix: /api
+      component:
+        name: backend
+        rewrite: /v1
+
+    # Extension + bot API on api.haulbot.online
     - match:
         authority:
           exact: api.haulbot.online
@@ -221,20 +227,8 @@ ingress:
       component:
         name: backend
 
-    # Browser BFF: /api/* → /v1/* on backend
-    - match:
-        authority:
-          exact: haulbot.online
-        path:
-          prefix: /api
-      component:
-        name: backend
-        rewrite: /v1
-
     # Marketing + /solo + /admin SPA
     - match:
-        authority:
-          exact: haulbot.online
         path:
           prefix: /
       component:
