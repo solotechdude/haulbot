@@ -68,7 +68,8 @@ describe("evaluateAgentHealth", () => {
   test("no alert when leg is deferred to the future", () => {
     const state = armedState();
     state.activeLeg!.searchOpensAt = new Date(NOW.getTime() + 60 * 60 * 1000).toISOString();
-    expect(evaluateAgentHealth(state, NOW)).toBeNull();
+    // readinessWindow is a Relay filter only — watchdog still expects scans
+    expect(evaluateAgentHealth(state, NOW)).toBe("scan_stalled");
   });
 
   test("no alert when relay-access flow already owns the incident", () => {
@@ -78,11 +79,20 @@ describe("evaluateAgentHealth", () => {
     expect(evaluateAgentHealth(state, NOW)).toBeNull();
   });
 
-  test("no alert with an active commitment (not expected to scan)", () => {
+  test("no alert with commitment and no active hunt", () => {
+    const state = armedState({
+      commitment: { loadId: "T-1", origin: "A", destination: "B", status: "booked" },
+      activeLeg: null,
+      campaignSessionId: null,
+    });
+    expect(evaluateAgentHealth(state, NOW)).toBeNull();
+  });
+
+  test("alerts when hunting next leg while on trip", () => {
     const state = armedState({
       commitment: { loadId: "T-1", origin: "A", destination: "B", status: "booked" },
     });
-    expect(evaluateAgentHealth(state, NOW)).toBeNull();
+    expect(evaluateAgentHealth(state, NOW)).toBe("scan_stalled");
   });
 
   test("no alert when not armed", () => {
@@ -113,10 +123,19 @@ describe("shouldAnnounceRecovery", () => {
     expect(shouldAnnounceRecovery(armedState({ campaignSessionId: null }))).toBe(false);
   });
 
-  test("silent when a commitment landed (scanning no longer expected)", () => {
+  test("silent when commitment has no hunt (scanning not expected)", () => {
+    const state = armedState({
+      commitment: { loadId: "T-1", origin: "A", destination: "B", status: "booked" },
+      activeLeg: null,
+      campaignSessionId: null,
+    });
+    expect(shouldAnnounceRecovery(state)).toBe(false);
+  });
+
+  test("announces recovery while hunting next leg on active trip", () => {
     const state = armedState({
       commitment: { loadId: "T-1", origin: "A", destination: "B", status: "booked" },
     });
-    expect(shouldAnnounceRecovery(state)).toBe(false);
+    expect(shouldAnnounceRecovery(state)).toBe(true);
   });
 });

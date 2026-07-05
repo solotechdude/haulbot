@@ -32,6 +32,6 @@ export async function getUserIdByTelegramChat(telegramChatId: string): Promise<s
 }
 
 export function telegramDeepLinkUrl(token: string): string {
-  const username = process.env.TELEGRAM_BOT_USERNAME ?? "SwiftRelaySoloBot";
+  const username = process.env.TELEGRAM_BOT_USERNAME ?? "agent_haulbot";
   return `https://t.me/${username}?start=auth_${token}`;
 }

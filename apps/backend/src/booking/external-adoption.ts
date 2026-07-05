@@ -88,6 +88,9 @@ export async function adoptPendingBooking(userId: string, loadId?: string): Prom
   state.updatedAt = now;
   await upsertDispatchState(state);
 
+  const { ensureDispatchDashboardPin } = await import("../telegram/dashboard-sync");
+  await ensureDispatchDashboardPin(userId);
+
   return pending.loadId;
 }
 

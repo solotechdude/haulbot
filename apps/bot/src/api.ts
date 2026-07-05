@@ -1,3 +1,5 @@
+import type { EquipmentMain, LastCampaignDefaults } from "@haulbot/shared";
+
 const apiOrigin = process.env.SOLO_API_ORIGIN ?? "http://localhost:8080";
 const serviceToken = process.env.DISPATCHER_SERVICE_TOKEN ?? "dev-dispatcher-token";
 
@@ -42,7 +44,16 @@ async function postDispatch<T>(path: string, body: unknown, label: string): Prom
 
 export interface ActiveLegSummary {
   mode: string;
-  searchCriteria: { origin?: string; destination?: string; radius?: number };
+  searchCriteria: {
+    origin?: string;
+    origins?: string[];
+    destination?: string;
+    radius?: number;
+    destinationRadius?: number;
+    equipment?: { main: EquipmentMain; subs: string[] };
+    workTypes?: string[];
+    loadTypes?: string[];
+  };
   hardRules: { minRate?: number; minPayout?: number };
   readinessWindow?: string;
 }
@@ -50,7 +61,18 @@ export interface ActiveLegSummary {
 export interface HandoffSummary {
   deliveryCity: string;
   draftNextLeg: {
-    searchCriteria: { origin?: string; destination?: string; minRate?: number; minPayout?: number };
+    searchCriteria: {
+      origin?: string;
+      origins?: string[];
+      destination?: string;
+      radius?: number;
+      destinationRadius?: number;
+      equipment?: { main: EquipmentMain; subs: string[] };
+      workTypes?: string[];
+      loadTypes?: string[];
+      minRate?: number;
+      minPayout?: number;
+    };
     hardRules: { minRate?: number; minPayout?: number };
   };
 }
@@ -61,6 +83,7 @@ export interface DispatchStatus {
     paused: boolean;
     activeLeg: ActiveLegSummary | null;
     commitment: { loadId: string; origin?: string; destination?: string; status?: string } | null;
+    queuedCommitment?: { loadId: string; origin?: string; destination?: string } | null;
     campaignSessionId?: string | null;
     pendingAdoption?: { loadId: string } | null;
     agentStatus?: {
@@ -70,6 +93,7 @@ export interface DispatchStatus {
     relayAccess?: { kind: string; detectedAt: string } | null;
     watchdogAlert?: { kind: "offline" | "scan_stalled"; at: string } | null;
     heartbeatAt?: string;
+    lastCampaignDefaults?: LastCampaignDefaults | null;
   };
   handoff?: HandoffSummary | null;
   /** Set on fresh=1 requests: did the extension answer the live probe? */
@@ -81,7 +105,18 @@ export async function linkTelegram(input: {
   telegramChatId: string;
   telegramUsername?: string;
 }): Promise<{ userId: string }> {
-  return post("/v1/bot/telegram/link", input, "link");
+  const res = await fetch(`${apiOrigin}/v1/bot/telegram/link`, {
+    method: "POST",
+    headers: headers(),
+    body: JSON.stringify(input),
+  });
+  if (res.status === 401) throw new Error("INVALID_TOKEN");
+  if (res.status === 409) {
+    const data = (await res.json()) as { error?: string };
+    throw new Error(data.error === "CHAT_LINKED_TO_OTHER" ? "CHAT_LINKED_TO_OTHER" : "LINK_CONFLICT");
+  }
+  if (!res.ok) throw new Error(`link failed: ${res.status}`);
+  return res.json() as Promise<{ userId: string }>;
 }
 
 export async function getUserIdByChat(chatId: string): Promise<string | null> {
@@ -115,15 +150,38 @@ export async function setCampaign(
   userId: string,
   input: {
     origin: string;
+    origins?: string[];
     destination: string;
     minRate: number;
     minPayout: number;
     radius?: number;
+    destinationRadius?: number;
+    equipment?: { main: EquipmentMain; subs: string[] };
+    workTypes?: string[];
+    loadTypes?: string[];
     readinessWindow?: string;
     clearCommitment?: boolean;
   },
 ): Promise<{ activeLeg: ActiveLegSummary }> {
   return postDispatch("/v1/bot/dispatch/campaign", { userId, ...input }, "campaign");
+}
+
+export async function saveCampaignPreset(
+  userId: string,
+  name: string,
+  draft: {
+    origins: string[];
+    destination: string;
+    minRate: number;
+    minPayout: number;
+    radius?: number;
+    destinationRadius?: number;
+    equipment?: { main: EquipmentMain; subs: string[] };
+    workTypes?: string[];
+    loadTypes?: string[];
+  },
+): Promise<void> {
+  await post("/v1/bot/dispatch/campaign/preset", { userId, name, draft }, "preset");
 }
 
 export interface GoalResponse {
@@ -202,6 +260,47 @@ export async function getDispatchStatus(
 ): Promise<DispatchStatus> {
   const query = options.fresh ? "?fresh=1" : "";
   return get(`/v1/bot/dispatch/status/${encodeURIComponent(userId)}${query}`, "status");
+}
+
+export async function syncDispatchUi(userId: string): Promise<void> {
+  await post("/v1/bot/dispatch/sync-ui", { userId }, "sync-ui");
+}
+
+export async function promptCompleteConfirm(userId: string): Promise<void> {
+  await post("/v1/bot/dispatch/ui/complete-prompt", { userId }, "complete-prompt");
+}
+
+export async function promptCancelHunt(userId: string): Promise<void> {
+  await post("/v1/bot/dispatch/ui/cancel-hunt-prompt", { userId }, "cancel-hunt-prompt");
+}
+
+export async function clearDashboardPrompts(userId: string): Promise<void> {
+  await post("/v1/bot/dispatch/ui/clear-prompts", { userId }, "clear-prompts");
+}
+
+export async function shiftHuntPickup(
+  userId: string,
+  hours: number,
+): Promise<{ readinessWindow: string }> {
+  return post("/v1/bot/dispatch/hunt/shift", { userId, hours }, "hunt shift");
+}
+
+export async function shiftHuntPickupTo(
+  userId: string,
+  readinessWindow: string,
+): Promise<{ readinessWindow: string }> {
+  return post("/v1/bot/dispatch/hunt/shift", { userId, readinessWindow }, "hunt shift");
+}
+
+export async function cancelHunt(userId: string): Promise<void> {
+  await post("/v1/bot/dispatch/hunt/cancel", { userId }, "hunt cancel");
+}
+
+export async function rehunt(
+  userId: string,
+  accept: boolean,
+): Promise<{ armed: boolean; readinessWindow?: string }> {
+  return post("/v1/bot/dispatch/rehunt", { userId, accept }, "rehunt");
 }
 
 export async function setPaused(userId: string, paused: boolean): Promise<void> {

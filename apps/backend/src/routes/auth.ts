@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { issueMagicLinkToken, soloPortalUrl, verifyMagicLinkToken } from "../auth/magic-link";
+import { issueSignInToken, soloPortalUrl, verifyMagicLinkToken } from "../auth/magic-link";
 import { issueSessionToken } from "../auth/session";
 import { getDb } from "../db";
 import { sendSignInEmail } from "../email/mailer";
@@ -18,7 +18,7 @@ authRoutes.post("/request-login", async (c) => {
 
   if (user?.id) {
     try {
-      const token = await issueMagicLinkToken(String(user.id));
+      const token = await issueSignInToken(String(user.id));
       await sendSignInEmail(normalized, soloPortalUrl(token));
     } catch (err) {
       console.error("[auth] request-login failed:", err);

@@ -8,6 +8,7 @@ import {
   getPendingHandoff,
   updateHandoffDraft,
 } from "../booking/handoff";
+import { cancelHunt, shiftHuntPickup, shiftHuntPickupByHours } from "../booking/hunt";
 import { getDispatchState, upsertDispatchState } from "../db";
 import { armActiveLeg } from "../dispatch/arm-leg";
 import { applyGoal } from "../goal/apply";
@@ -79,31 +80,51 @@ botDispatchRoutes.get("/status/:userId", async (c) => {
 });
 
 botDispatchRoutes.post("/campaign", async (c) => {
-  /** Telegram: /campaign ORIGIN minRate minPayout — see docs/campaign-bot-flow.md */
+  /** Telegram campaign wizard — see docs/campaign-bot-flow.md */
   const body = await c.req.json<{
     userId?: string;
     origin?: string;
+    origins?: string[];
     destination?: string;
     minRate?: number;
     minPayout?: number;
     radius?: number;
+    destinationRadius?: number;
+    equipment?: import("@haulbot/shared").EquipmentSelection;
+    workTypes?: string[];
+    loadTypes?: string[];
     readinessWindow?: string;
     clearCommitment?: boolean;
   }>();
 
-  if (!body.userId || !body.origin || body.minRate == null || body.minPayout == null) {
+  const origins =
+    body.origins?.length ?
+      body.origins.map((o) => o.toUpperCase())
+    : body.origin ?
+      [body.origin.toUpperCase()]
+    : null;
+
+  if (!body.userId || !origins?.length || body.minRate == null || body.minPayout == null) {
     return c.json({ error: "INVALID_REQUEST" }, 400);
   }
 
-  const destination = (body.destination ?? body.origin).toUpperCase();
+  const origin = origins[0]!;
+  const destination = (body.destination ?? origin).toUpperCase();
   const readinessWindow = body.readinessWindow ?? new Date().toISOString();
 
   const activeLeg: ActiveLeg = {
     mode: "campaign",
     searchCriteria: {
-      origin: body.origin.toUpperCase(),
+      origin,
+      origins,
       destination,
       ...(body.radius != null ? { radius: body.radius } : {}),
+      ...(body.destinationRadius != null ? { destinationRadius: body.destinationRadius } : {}),
+      ...(body.equipment ? { equipment: body.equipment } : {}),
+      ...(body.workTypes?.length ? { workTypes: body.workTypes } : {}),
+      ...(body.loadTypes?.length ? { loadTypes: body.loadTypes } : {}),
+      boardMinRate: body.minRate,
+      boardMinPayout: body.minPayout,
     },
     hardRules: { minRate: body.minRate, minPayout: body.minPayout },
     bookPriority: "payout_then_rate",
@@ -119,6 +140,34 @@ botDispatchRoutes.post("/campaign", async (c) => {
   }
 
   return c.json({ ok: true, activeLeg });
+});
+
+botDispatchRoutes.post("/campaign/preset", async (c) => {
+  const body = await c.req.json<{
+    userId?: string;
+    name?: string;
+    draft?: Record<string, unknown>;
+  }>();
+  if (!body.userId || !body.name?.trim() || !body.draft) {
+    return c.json({ error: "INVALID_REQUEST" }, 400);
+  }
+
+  const state = await getDispatchState(body.userId);
+  if (!state) return c.json({ error: "NOT_FOUND" }, 404);
+
+  const presets = state.savedCampaignPresets ?? [];
+  const entry = {
+    name: body.name.trim().slice(0, 40),
+    draft: body.draft as import("@haulbot/shared").SavedCampaignPreset["draft"],
+    savedAt: new Date().toISOString(),
+  };
+  const idx = presets.findIndex((p) => p.name === entry.name);
+  if (idx >= 0) presets[idx] = entry;
+  else presets.unshift(entry);
+  state.savedCampaignPresets = presets.slice(0, 10);
+  state.updatedAt = new Date().toISOString();
+  await upsertDispatchState(state);
+  return c.json({ ok: true });
 });
 
 /** O3 — Telegram: /goal <natural language> */
@@ -168,7 +217,12 @@ botDispatchRoutes.post("/complete", async (c) => {
     return c.json({ error: result.error }, status);
   }
 
-  return c.json({ ok: true, clearedLoadId: result.clearedLoadId });
+  return c.json({
+    ok: true,
+    clearedLoadId: result.clearedLoadId,
+    promotedQueued: result.promotedQueued,
+    offerRehunt: result.offerRehunt,
+  });
 });
 
 botDispatchRoutes.post("/adopt", async (c) => {
@@ -204,6 +258,9 @@ async function setPaused(userId: string, paused: boolean): Promise<void> {
   state.paused = paused;
   state.updatedAt = now;
   await upsertDispatchState(state);
+
+  const { syncDispatchDashboard } = await import("../telegram/dashboard-sync");
+  await syncDispatchDashboard(userId, state);
 }
 
 botDispatchRoutes.post("/pause", async (c) => {
@@ -265,4 +322,108 @@ botDispatchRoutes.post("/handoff/draft", async (c) => {
   } catch {
     return c.json({ error: "NO_HANDOFF" }, 404);
   }
+});
+
+botDispatchRoutes.post("/hunt/shift", async (c) => {
+  const body = await c.req.json<{ userId?: string; hours?: number; readinessWindow?: string }>();
+  if (!body.userId) return c.json({ error: "INVALID_REQUEST" }, 400);
+
+  try {
+    if (body.readinessWindow) {
+      const result = await shiftHuntPickup(body.userId, body.readinessWindow);
+      return c.json({ ok: true, ...result });
+    }
+    const hours = body.hours ?? 1;
+    const result = await shiftHuntPickupByHours(body.userId, hours);
+    return c.json({ ok: true, ...result });
+  } catch {
+    return c.json({ error: "NOT_HUNTING" }, 404);
+  }
+});
+
+botDispatchRoutes.post("/hunt/cancel", async (c) => {
+  const body = await c.req.json<{ userId?: string }>();
+  if (!body.userId) return c.json({ error: "INVALID_REQUEST" }, 400);
+
+  try {
+    await cancelHunt(body.userId);
+    return c.json({ ok: true });
+  } catch {
+    return c.json({ error: "NOT_HUNTING" }, 404);
+  }
+});
+
+botDispatchRoutes.post("/rehunt", async (c) => {
+  const body = await c.req.json<{ userId?: string; accept?: boolean }>();
+  if (!body.userId) return c.json({ error: "INVALID_REQUEST" }, 400);
+
+  const state = await getDispatchState(body.userId);
+  if (!state) return c.json({ error: "NOT_FOUND" }, 404);
+
+  if (!body.accept) {
+    state.canceledHunt = null;
+    state.uiRehuntOffer = false;
+    state.updatedAt = new Date().toISOString();
+    await upsertDispatchState(state);
+    const { ensureDispatchDashboardPin } = await import("../telegram/dashboard-sync");
+    await ensureDispatchDashboardPin(body.userId);
+    return c.json({ ok: true, armed: false });
+  }
+
+  const leg = state.canceledHunt;
+  if (!leg) return c.json({ error: "NO_CANCELED_HUNT" }, 404);
+
+  const readinessWindow = new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString();
+  const activeLeg = {
+    ...leg,
+    readinessWindow,
+    searchOpensAt: readinessWindow,
+  };
+  state.activeLeg = activeLeg;
+  state.canceledHunt = null;
+  state.uiRehuntOffer = false;
+  state.campaignSessionId = crypto.randomUUID();
+  state.updatedAt = new Date().toISOString();
+  await upsertDispatchState(state);
+
+  const { ensureDispatchDashboardPin } = await import("../telegram/dashboard-sync");
+  await ensureDispatchDashboardPin(body.userId);
+
+  return c.json({ ok: true, armed: true, activeLeg, readinessWindow });
+});
+
+botDispatchRoutes.post("/sync-ui", async (c) => {
+  const body = await c.req.json<{ userId?: string }>();
+  if (!body.userId) return c.json({ error: "INVALID_REQUEST" }, 400);
+
+  const { ensureDispatchDashboardPin } = await import("../telegram/dashboard-sync");
+  await ensureDispatchDashboardPin(body.userId);
+  return c.json({ ok: true });
+});
+
+botDispatchRoutes.post("/ui/complete-prompt", async (c) => {
+  const body = await c.req.json<{ userId?: string }>();
+  if (!body.userId) return c.json({ error: "INVALID_REQUEST" }, 400);
+
+  const { setDashboardUiPrompt } = await import("../telegram/dashboard-sync");
+  await setDashboardUiPrompt(body.userId, "complete");
+  return c.json({ ok: true });
+});
+
+botDispatchRoutes.post("/ui/cancel-hunt-prompt", async (c) => {
+  const body = await c.req.json<{ userId?: string }>();
+  if (!body.userId) return c.json({ error: "INVALID_REQUEST" }, 400);
+
+  const { setDashboardUiPrompt } = await import("../telegram/dashboard-sync");
+  await setDashboardUiPrompt(body.userId, "cancel_hunt");
+  return c.json({ ok: true });
+});
+
+botDispatchRoutes.post("/ui/clear-prompts", async (c) => {
+  const body = await c.req.json<{ userId?: string }>();
+  if (!body.userId) return c.json({ error: "INVALID_REQUEST" }, 400);
+
+  const { clearDashboardUiPrompts } = await import("../telegram/dashboard-sync");
+  await clearDashboardUiPrompts(body.userId);
+  return c.json({ ok: true });
 });

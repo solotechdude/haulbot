@@ -1,6 +1,6 @@
 import type { RelayAccessIssue, RelayAccessIssueKind } from "@haulbot/shared";
 import { getDb, getDispatchState, upsertDispatchState } from "../db";
-import { syncCampaignStatusMessage } from "../telegram/campaign-status";
+import { syncDispatchDashboard } from "../telegram/dashboard-sync";
 import { sendTelegramMessage } from "../telegram/notify";
 
 /**
@@ -110,7 +110,7 @@ export async function reportRelayAccessIssue(
   }
 
   // Pinned campaign status flips to "Relay access blocked" immediately
-  await syncCampaignStatusMessage(userId, next, null);
+  await syncDispatchDashboard(userId, next, null);
 
   return { notified: shouldNotify };
 }
@@ -145,7 +145,7 @@ export async function clearRelayAccessIssue(userId: string): Promise<{ cleared: 
     );
   }
 
-  await syncCampaignStatusMessage(userId, state, null);
+  await syncDispatchDashboard(userId, state, null);
 
   return { cleared: true };
 }

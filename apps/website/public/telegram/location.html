@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+    <title>Haulbot location</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+      body {
+        margin: 0;
+        font-family: system-ui, sans-serif;
+        background: var(--tg-theme-bg-color, #fff);
+        color: var(--tg-theme-text-color, #111);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+        font-size: 15px;
+      }
+    </style>
+  </head>
+  <body>
+    <p id="status">Getting your location…</p>
+    <script>
+      const tg = window.Telegram.WebApp;
+      tg.ready();
+      tg.expand();
+
+      function finish(payload) {
+        tg.sendData(JSON.stringify(payload));
+        tg.close();
+      }
+
+      function fail(code) {
+        finish({ error: code });
+      }
+
+      function onCoords(lat, lon) {
+        if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+          fail("invalid");
+          return;
+        }
+        finish({ lat, lon });
+      }
+
+      function viaBrowserGeolocation() {
+        if (!navigator.geolocation) {
+          fail("unavailable");
+          return;
+        }
+        navigator.geolocation.getCurrentPosition(
+          (pos) => onCoords(pos.coords.latitude, pos.coords.longitude),
+          () => fail("denied"),
+          { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
+        );
+      }
+
+      function viaTelegramLocationManager() {
+        const lm = tg.LocationManager;
+        if (!lm || typeof lm.getLocation !== "function") {
+          viaBrowserGeolocation();
+          return;
+        }
+        const run = () => {
+          lm.getLocation((data) => {
+            if (!data) {
+              fail("denied");
+              return;
+            }
+            onCoords(data.latitude, data.longitude);
+          });
+        };
+        if (typeof lm.init === "function") {
+          lm.init(() => run());
+        } else {
+          run();
+        }
+      }
+
+      try {
+        viaTelegramLocationManager();
+      } catch {
+        fail("error");
+      }
+    </script>
+  </body>
+</html>

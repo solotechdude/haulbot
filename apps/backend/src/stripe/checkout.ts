@@ -1,4 +1,4 @@
-import { soloPortalUrl, issueMagicLinkToken } from "../auth/magic-link";
+import { soloPortalUrl, issueCheckoutToken } from "../auth/magic-link";
 import { getStripe } from "./client";
 import { ensureUserByEmail } from "../users";
 
@@ -16,7 +16,7 @@ export async function createSoloCheckoutSession(
   if (!priceId) throw new Error("STRIPE_PRICE_ID_NOT_CONFIGURED");
 
   const user = await ensureUserByEmail(email);
-  const magicToken = await issueMagicLinkToken(user.id);
+  const magicToken = await issueCheckoutToken(user.id);
   const portalUrl = soloPortalUrl(magicToken);
   const origin = websiteOrigin();
 

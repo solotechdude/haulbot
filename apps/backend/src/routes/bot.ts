@@ -22,6 +22,11 @@ botRoutes.post("/telegram/link", async (c) => {
   const userId = await verifyTelegramLinkToken(body.token);
   if (!userId) return c.json({ error: "INVALID_TOKEN" }, 401);
 
+  const chatOwner = await getUserIdByTelegramChat(body.telegramChatId);
+  if (chatOwner && chatOwner !== userId) {
+    return c.json({ error: "CHAT_LINKED_TO_OTHER" }, 409);
+  }
+
   await linkTelegramChat({
     userId,
     telegramChatId: body.telegramChatId,

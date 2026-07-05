@@ -46,9 +46,6 @@ export async function getDriverProfile(userId: string): Promise<DriverProfile | 
     email: String(user.email),
     onboardingStep,
     telegramLinked,
-    telegramDevStub: Boolean(
-      telegram?.devStub || String(telegram?.telegramChatId ?? "").startsWith("dev-"),
-    ),
     paused: dispatch?.paused ?? false,
   };
 }

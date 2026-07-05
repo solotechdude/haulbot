@@ -56,6 +56,7 @@ The visitor should feel: *"They are building something real."*
 ### Marketing (`/`)
 
 - Landing, pricing, changelog, roadmap
+- Hero: scroll-triggered Remotion chat demo (`/videos/hero-campaign-demo.*`); static mock if `prefers-reduced-motion`
 - Real screenshots of Telegram flow and admin (when available)
 - CTA → Stripe checkout
 - No dispatch controls — drive to Telegram after onboarding

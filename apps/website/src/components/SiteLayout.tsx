@@ -4,6 +4,8 @@ import "./SiteLayout.css";
 
 interface SiteLayoutProps {
   children: React.ReactNode;
+  /** Optional modifier for `<main>` — e.g. tighter padding on /solo */
+  mainClassName?: string;
 }
 
 const SESSION_KEY = "haulbot_user_id";
@@ -26,7 +28,7 @@ function clearSession() {
   localStorage.removeItem(SESSION_TOKEN_KEY);
 }
 
-export function SiteLayout({ children }: SiteLayoutProps) {
+export function SiteLayout({ children, mainClassName }: SiteLayoutProps) {
   const [loggedIn, setLoggedIn] = useState(() => isLoggedIn());
   const [email, setEmail] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -119,8 +121,11 @@ export function SiteLayout({ children }: SiteLayoutProps) {
     <div className="site">
       <header className="site__header">
         <div className="site__header-inner">
-          <Link to="/" className="site__logo">
-            Haul<span className="site__logo-mark">bot</span>
+          <Link to="/" className="site__logo" aria-label="Haulbot home">
+            <span className="site__logo-badge" aria-hidden="true">H</span>
+            <span className="site__logo-word">
+              Haul<span className="site__logo-mark">bot</span>
+            </span>
           </Link>
           <nav className="site__nav">
             {loggedIn ? (
@@ -173,7 +178,7 @@ export function SiteLayout({ children }: SiteLayoutProps) {
           </nav>
         </div>
       </header>
-      <main className="site__main">{children}</main>
+      <main className={mainClassName ? `site__main ${mainClassName}` : "site__main"}>{children}</main>
     </div>
   );
 }

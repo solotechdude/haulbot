@@ -1,8 +1,9 @@
 import { Hono } from "hono";
 import { issueTelegramLinkToken } from "../auth/magic-link";
-import { getDispatchState } from "../db";
+import { getDb, getDispatchState } from "../db";
 import { requireDriverSession } from "../middleware/auth";
 import { ensureProvisionedIfSubscribed } from "../provisioning";
+import { buildPortalAgentStatus, mapBookingHistory } from "../portal/agent-status";
 import { telegramDeepLinkUrl } from "../telegram/link";
 import { getDriverProfile } from "../onboarding";
 
@@ -22,23 +23,61 @@ onboardingRoutes.get("/status", async (c) => {
 
 onboardingRoutes.get("/agent-status", async (c) => {
   const userId = c.get("userId");
-  const s = await getDispatchState(userId);
-  if (!s) {
-    return c.json({ running: false, paused: false, trip: null, lastScan: null, alert: null, heartbeatAt: null, updatedAt: null });
+  const state = await getDispatchState(userId);
+
+  const bookingByLoadId = new Map<string, { payout?: number; ratePerMile?: number }>();
+  if (state?.commitment?.loadId) {
+    const db = await getDb();
+    const row = await db.collection("booking_completions").findOne({
+      userId,
+      loadId: state.commitment.loadId,
+    });
+    if (row) {
+      bookingByLoadId.set(state.commitment.loadId, {
+        payout: row.payout as number | undefined,
+        ratePerMile: row.ratePerMile as number | undefined,
+      });
+    }
   }
-  const paused = s.paused ?? false;
-  const running = !paused && Boolean(s.agentStatus?.armed);
-  const trip = s.commitment
-    ? { origin: s.commitment.origin, destination: s.commitment.destination, status: s.commitment.status, deliveryEta: s.commitment.deliveryEta ?? null }
-    : null;
-  const scan = s.agentStatus?.lastScanSummary;
-  const lastScan = scan
-    ? { scanned: scan.scanned, booked: scan.booked, at: scan.at }
-    : null;
-  let alert: "reconnect_relay" | "agent_offline" | null = null;
-  if (s.relayAccess) alert = "reconnect_relay";
-  else if (s.watchdogAlert?.kind === "offline") alert = "agent_offline";
-  return c.json({ running, paused, trip, lastScan, alert, heartbeatAt: s.heartbeatAt ?? null, updatedAt: s.updatedAt ?? null });
+
+  return c.json(buildPortalAgentStatus(state, bookingByLoadId));
+});
+
+onboardingRoutes.get("/booking-history", async (c) => {
+  const userId = c.get("userId");
+  const period = c.req.query("period") ?? "all";
+  const limit = Math.min(Number(c.req.query("limit") ?? 20), 100);
+
+  const since = (() => {
+    const now = Date.now();
+    if (period === "week") return new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString();
+    if (period === "month") return new Date(now - 30 * 24 * 60 * 60 * 1000).toISOString();
+    return null;
+  })();
+
+  const db = await getDb();
+  const filter: Record<string, unknown> = { userId };
+  if (since) filter.createdAt = { $gte: since };
+
+  const rows = await db
+    .collection("booking_completions")
+    .find(filter)
+    .sort({ createdAt: -1 })
+    .limit(limit)
+    .toArray();
+
+  return c.json(
+    mapBookingHistory(
+      rows as Array<{
+        loadId?: string;
+        origin?: string;
+        destination?: string;
+        payout?: number;
+        ratePerMile?: number;
+        createdAt?: string;
+      }>,
+    ),
+  );
 });
 
 onboardingRoutes.get("/telegram-deeplink", async (c) => {
@@ -46,31 +85,4 @@ onboardingRoutes.get("/telegram-deeplink", async (c) => {
 
   const token = await issueTelegramLinkToken(userId);
   return c.json({ url: telegramDeepLinkUrl(token) });
-});
-
-/** Dev stub — prefer Telegram deep link in production */
-onboardingRoutes.post("/telegram-link", async (c) => {
-  const userId = c.get("userId");
-
-  const db = (await import("../db")).getDb;
-  const database = await db();
-  const now = new Date().toISOString();
-
-  await database.collection("telegram_links").updateOne(
-    { userId },
-    {
-      $set: {
-        userId,
-        telegramChatId: `dev-${userId}`,
-        devStub: true,
-        linkedAt: now,
-        updatedAt: now,
-      },
-      $setOnInsert: { createdAt: now },
-    },
-    { upsert: true },
-  );
-
-  const profile = await getDriverProfile(userId);
-  return c.json(profile);
 });

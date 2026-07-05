@@ -11,6 +11,9 @@
   --color-accent-hover: #0b5a54;
   --color-accent-tint: #e8f2f1;
   --color-accent-tint-border: #cfe4e2;
+  --color-warn: #b45309;
+  --color-warn-tint: #fef3c7;
+  --color-warn-tint-border: #fde68a;
   --radius-xs: 8px;
   --radius-sm: 10px;
   --radius: 12px;

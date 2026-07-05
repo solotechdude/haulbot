@@ -15,7 +15,7 @@ import { requireExtensionAuth } from "../middleware/auth";
 import { getDriverProfile } from "../onboarding";
 import { clearRelayAccessIssue, reportRelayAccessIssue } from "../relay-alerts/access";
 import { recordRelayAlert, syncTripStatus } from "../relay-alerts/record";
-import { syncCampaignStatusMessage } from "../telegram/campaign-status";
+import { syncDispatchDashboard } from "../telegram/dashboard-sync";
 import { consumeRelay2faCode, getRelayCredentials } from "../vault/relay-secrets";
 
 export const dispatcherRoutes = new Hono();
@@ -126,7 +126,7 @@ dispatcherRoutes.patch("/state/heartbeat", async (c) => {
   await upsertDispatchState(state);
 
   if (state.agentStatus) {
-    void syncCampaignStatusMessage(userId, state, prevAgentStatus);
+    void syncDispatchDashboard(userId, state, prevAgentStatus);
   }
 
   return c.json({ ok: true, heartbeatAt: now });

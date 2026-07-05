@@ -1,7 +1,6 @@
 import type { DispatchState } from "@haulbot/shared";
-import { formatRouteLabel } from "@haulbot/shared";
+import { isHuntingForQueued } from "@haulbot/shared";
 import { getDb, upsertDispatchState } from "./db";
-import { sendTelegramMessage } from "./telegram/notify";
 
 /**
  * Agent-health watchdog — the backend must not trust silence. An armed leg
@@ -22,13 +21,10 @@ export type AgentHealthIssue = "offline" | "scan_stalled";
 export function evaluateAgentHealth(state: DispatchState, now: Date): AgentHealthIssue | null {
   // Only armed, unblocked legs are expected to be scanning
   if (state.paused || !state.activeLeg || !state.campaignSessionId) return null;
-  if (state.relayAccess) return null; // already alerted via the relay-access flow
-  if (state.commitment) return null;
-
-  const opensAt = state.activeLeg.searchOpensAt
-    ? new Date(state.activeLeg.searchOpensAt).getTime()
-    : 0;
-  if (opensAt > now.getTime()) return null; // deferred leg — not due yet
+  if (state.relayAccess) return null;
+  if (state.queuedCommitment) return null;
+  // Hunting while on a trip is expected — only skip when commitment exists without active hunt
+  if (state.commitment && !isHuntingForQueued(state)) return null;
 
   const heartbeat = state.heartbeatAt ? new Date(state.heartbeatAt).getTime() : 0;
   if (now.getTime() - heartbeat > HEARTBEAT_STALL_MS) return "offline";
@@ -37,7 +33,6 @@ export function evaluateAgentHealth(state: DispatchState, now: Date): AgentHealt
   const anchor = Math.max(
     lastScan ? new Date(lastScan).getTime() : 0,
     state.armedAt ? new Date(state.armedAt).getTime() : 0,
-    opensAt,
   );
   if (anchor > 0 && now.getTime() - anchor > SCAN_STALL_MS) return "scan_stalled";
 
@@ -57,34 +52,9 @@ export function shouldAnnounceRecovery(state: DispatchState): boolean {
     !state.paused &&
       state.activeLeg &&
       state.campaignSessionId &&
-      !state.commitment &&
-      !state.relayAccess,
-  );
-}
-
-function driverMessageForStall(kind: AgentHealthIssue, state: DispatchState): string {
-  const route = formatRouteLabel(
-    state.activeLeg?.searchCriteria.origin,
-    state.activeLeg?.searchCriteria.destination,
-  );
-
-  if (kind === "offline") {
-    return (
-      `Your agent went offline.\n\n` +
-      `Campaign ${route} is armed but the extension hasn't checked in for over 3 minutes. ` +
-      `No loads are being searched right now. The browser environment may have restarted — ` +
-      `dispatch resumes automatically when it reconnects, and you'll get a message here.`
-    );
-  }
-
-  return (
-    `Your agent is NOT searching.\n\n` +
-    `Campaign ${route} is armed but no load board scan has completed in over 5 minutes. ` +
-    `Most common cause: Amazon Relay is blocking the load board page ` +
-    `(missing Load Board permission or a signed-out session).\n\n` +
-    `Open relay.amazon.com/loadboard/search and check for a permissions or login message. ` +
-    `If you see "You do not have permissions", ask your carrier administrator to grant ` +
-    `Load Board access. You'll get a message here when scanning resumes.`
+      !state.queuedCommitment &&
+      !state.relayAccess &&
+      (!state.commitment || isHuntingForQueued(state)),
   );
 }
 
@@ -112,7 +82,8 @@ async function checkAllAgents(now: Date): Promise<void> {
         createdAt: now.toISOString(),
       });
 
-      await sendTelegramMessage(state.userId, driverMessageForStall(issue, state));
+      const { ensureDispatchDashboardPin } = await import("./telegram/dashboard-sync");
+      await ensureDispatchDashboardPin(state.userId);
       console.warn("[watchdog] %s for user %s", issue, state.userId);
     } else if (!issue && state.watchdogAlert) {
       state.watchdogAlert = null;
@@ -120,10 +91,8 @@ async function checkAllAgents(now: Date): Promise<void> {
       await upsertDispatchState(state);
 
       if (shouldAnnounceRecovery(state)) {
-        await sendTelegramMessage(
-          state.userId,
-          "Your agent is back — load board scanning resumed.",
-        );
+        const { ensureDispatchDashboardPin } = await import("./telegram/dashboard-sync");
+        await ensureDispatchDashboardPin(state.userId);
         console.log("[watchdog] recovered for user %s", state.userId);
       } else {
         console.log(

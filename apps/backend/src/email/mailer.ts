@@ -1,3 +1,4 @@
+import { renderMagicLinkEmail } from "@haulbot/email-templates";
 import { Resend } from "resend";
 
 const DEFAULT_FROM = "Haulbot <login@haulbot.online>";
@@ -20,14 +21,7 @@ export async function sendSignInEmail(to: string, url: string): Promise<void> {
     return;
   }
 
-  const text =
-    `Click to sign in to your Haulbot account:\n\n${url}\n\n` +
-    `This link expires in 7 days. If you didn't request it, you can ignore this email.`;
-
-  const html =
-    `<p>Click to sign in to your Haulbot account:</p>` +
-    `<p><a href="${url}">${url}</a></p>` +
-    `<p>This link expires in 7 days. If you didn't request it, you can ignore this email.</p>`;
+  const { html, text } = await renderMagicLinkEmail({ portalUrl: url, driverEmail: to });
 
   try {
     const { error } = await getResend(apiKey).emails.send({

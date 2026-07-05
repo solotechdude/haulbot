@@ -23,7 +23,7 @@ The invisible booking assistant that runs inside a Driver's Dedicated Environmen
 _Avoid_: Bot (reserved for the Telegram interface), extension (implementation detail)
 
 **Telegram Bot**:
-The `@SwiftRelaySoloBot` chat interface through which a Driver onboarded, sets goals, and receives updates.
+The `@agent_haulbot` chat interface through which a Driver onboarded, sets goals, and receives updates.
 _Avoid_: Agent, dispatcher
 
 **Goal**:

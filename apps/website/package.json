@@ -13,6 +13,7 @@
     "@fontsource-variable/geist-mono": "^5.2.8",
     "@fontsource-variable/instrument-sans": "^5.2.8",
     "@haulbot/shared": "workspace:*",
+    "qrcode.react": "^4.2.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-router-dom": "^7.1.5"

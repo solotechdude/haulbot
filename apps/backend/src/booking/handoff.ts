@@ -1,4 +1,5 @@
 import type { ActiveLeg, DispatchHandoff } from "@haulbot/shared";
+import { normalizeMarketCity, resolveMarketCity } from "@haulbot/shared";
 import { fetchLaneInsights } from "../analytics/engine-client";
 import { getDispatchPlan, getDispatchState, upsertDispatchPlan, upsertDispatchState } from "../db";
 
@@ -15,25 +16,34 @@ function defaultHardRules(priorLeg?: ActiveLeg | null) {
 export async function openHandoffOnBook(
   userId: string,
   input: OpenHandoffInput,
-): Promise<DispatchHandoff> {
+): Promise<DispatchHandoff | null> {
+  const existing = await getDispatchState(userId);
+  // Two-trip cap: skip handoff when next leg is already hunting or booked.
+  if (existing?.queuedCommitment || existing?.activeLeg) {
+    const { ensureDispatchDashboardPin } = await import("../telegram/dashboard-sync");
+    await ensureDispatchDashboardPin(userId);
+    return null;
+  }
+
   const now = new Date().toISOString();
-  const deliveryCity = input.deliveryCity.toUpperCase();
+  const deliveryCity = resolveMarketCity(input.deliveryCity);
   const hardRules = defaultHardRules(input.priorLeg);
-  const destination = input.priorLeg?.searchCriteria.destination?.toUpperCase() ?? deliveryCity;
+  // Next leg starts where this load delivers; default destination = anywhere (same token).
+  const nextOrigin = deliveryCity !== "UNKNOWN" ? deliveryCity : normalizeMarketCity(input.priorLeg?.searchCriteria.origin);
 
   // I2 — cache Market Intelligence for the delivery lane at handoff
   const laneInsights =
-    deliveryCity !== "UNKNOWN" ? await fetchLaneInsights(deliveryCity, destination) : null;
+    nextOrigin !== "UNKNOWN" ? await fetchLaneInsights(nextOrigin, nextOrigin) : null;
 
   const handoff: DispatchHandoff = {
-    deliveryCity,
+    deliveryCity: nextOrigin,
     bookedLoadId: input.bookedLoadId,
     suggestedReadiness: new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString(),
     awaitingField: "readiness",
     draftNextLeg: {
       searchCriteria: {
-        origin: deliveryCity,
-        destination,
+        origin: nextOrigin,
+        destination: nextOrigin,
       },
       hardRules,
     },
@@ -61,6 +71,9 @@ export async function dismissHandoff(userId: string): Promise<void> {
   plan.handoff = null;
   plan.updatedAt = new Date().toISOString();
   await upsertDispatchPlan(plan);
+
+  const { ensureDispatchDashboardPin } = await import("../telegram/dashboard-sync");
+  await ensureDispatchDashboardPin(userId);
 }
 
 export async function completeHandoffReadiness(
@@ -84,10 +97,11 @@ export async function completeHandoffReadiness(
 
   const state = await getDispatchState(userId);
   if (!state) throw new Error("NO_STATE");
+  if (state.queuedCommitment) throw new Error("NEXT_LEG_FULL");
 
   state.activeLeg = activeLeg;
-  // Defer extension arming while driver still has an active commitment
-  state.campaignSessionId = state.commitment ? null : crypto.randomUUID();
+  state.campaignSessionId = crypto.randomUUID();
+  state.canceledHunt = null;
   state.paused = false;
   state.updatedAt = now;
   await upsertDispatchState(state);
@@ -95,6 +109,9 @@ export async function completeHandoffReadiness(
   plan.handoff = null;
   plan.updatedAt = now;
   await upsertDispatchPlan(plan);
+
+  const { ensureDispatchDashboardPin } = await import("../telegram/dashboard-sync");
+  await ensureDispatchDashboardPin(userId);
 
   return { activeLeg, readinessWindow };
 }
@@ -129,6 +146,9 @@ export async function updateHandoffDraft(
   plan.handoff.awaitingField = "readiness";
   plan.updatedAt = new Date().toISOString();
   await upsertDispatchPlan(plan);
+
+  const { ensureDispatchDashboardPin } = await import("../telegram/dashboard-sync");
+  await ensureDispatchDashboardPin(userId);
 
   return plan.handoff;
 }

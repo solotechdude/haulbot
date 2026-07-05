@@ -149,6 +149,28 @@
   flex-shrink: 0;
 }
 
+.hero__demo {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+.hero__demo-video {
+  width: 100%;
+  max-width: 24rem;
+}
+
+.hero__demo-video-el {
+  display: block;
+  width: 100%;
+  max-width: 24rem;
+  height: auto;
+  aspect-ratio: 384 / 492;
+  border-radius: 18px;
+  box-shadow: var(--shadow-focal);
+  background: var(--color-bg);
+}
+
 /* ---------- Chat mock (Telegram style) ---------- */
 
 .chat {
@@ -513,69 +535,6 @@
   margin: 0;
 }
 
-/* ---------- Protect ---------- */
-
-.protect__head {
-  max-width: 44ch;
-  margin-bottom: var(--space-6);
-}
-
-.protect__head .section__lead {
-  margin-bottom: 0;
-}
-
-.protect__grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1px;
-  background: var(--color-border);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
-  overflow: hidden;
-}
-
-.protect__item {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-4);
-  background: var(--color-surface);
-  padding: var(--space-5);
-}
-
-.protect__icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  width: 2.75rem;
-  height: 2.75rem;
-  border-radius: var(--radius-xs);
-  border: 1px solid var(--color-accent-tint-border);
-  background: var(--color-accent-tint);
-  color: var(--color-accent);
-  box-shadow: none;
-}
-
-.protect__icon svg {
-  width: 1.375rem;
-  height: 1.375rem;
-}
-
-.protect__title {
-  font-size: 1.1875rem;
-  font-weight: 600;
-  letter-spacing: -0.015em;
-  margin: 0 0 var(--space-2);
-}
-
-.protect__body {
-  color: var(--color-muted);
-  font-size: 0.9375rem;
-  line-height: 1.6;
-  margin: 0;
-  max-width: 42ch;
-}
-
 /* ---------- Pricing ---------- */
 
 .pricing {
@@ -741,50 +700,6 @@
   color: var(--color-text);
 }
 
-/* ---------- Final CTA ---------- */
-
-.cta__inner {
-  max-width: 44rem;
-  margin: 0 auto;
-  background: var(--color-wash);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
-  box-shadow: none;
-  padding: clamp(var(--space-5), 5vw, var(--space-6)) var(--space-5);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-}
-
-.cta__title {
-  font-size: clamp(1.75rem, 4vw, 2.25rem);
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  color: var(--color-text);
-  margin: 0 0 var(--space-3);
-  text-wrap: balance;
-}
-
-.cta__sub {
-  color: var(--color-muted);
-  font-size: 1.0625rem;
-  line-height: 1.5;
-  max-width: 44ch;
-  margin: 0 auto;
-}
-
-.cta__actions {
-  margin-top: var(--space-4);
-}
-
-.cta__reassure {
-  font-size: 0.8125rem;
-  color: var(--color-muted);
-  text-align: center;
-  margin: var(--space-2) 0 0;
-}
-
 /* ---------- Footer ---------- */
 
 .marketing__footer {
@@ -816,10 +731,6 @@
     grid-template-columns: 1fr;
   }
 
-  .protect__grid {
-    grid-template-columns: 1fr;
-  }
-
   .capability {
     grid-template-columns: 1fr;
   }
@@ -835,9 +746,5 @@
   .capability__demo,
   .capability--flipped .capability__demo {
     justify-self: center;
-  }
-
-  .cta__inner {
-    padding: var(--space-5) var(--space-4);
   }
 }

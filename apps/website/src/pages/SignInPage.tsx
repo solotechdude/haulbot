@@ -52,8 +52,8 @@ export function SignInPage() {
             <>
               <h1 className="signin__title">Check your email</h1>
               <p className="signin__subline">
-                If an account exists for {email}, we&apos;ve sent a sign-in link. It expires in 7
-                days.
+                If an account exists for {email}, we&apos;ve sent a sign-in link. It expires in 15
+                minutes and can only be used once.
               </p>
               <p className="signin__footer">
                 Didn&apos;t get it?{" "}

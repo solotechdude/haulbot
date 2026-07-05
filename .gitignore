@@ -3,6 +3,8 @@ dist/
 .env
 .env.local
 .env.*.local
+.do/env.production.local.yaml
+.do/app.deploy.yaml
 .bun/
 .fallow/
 *.log

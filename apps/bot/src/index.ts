@@ -2,7 +2,9 @@ import { Bot, webhookCallback } from "grammy";
 import * as api from "./api";
 import { registerDispatchHandlers } from "./handlers/dispatch";
 import { registerHandoffHandlers } from "./handlers/handoff";
+import { registerHuntHandlers, registerKeyboardHandlers } from "./handlers/keyboard";
 import { registerOnboardingHandlers } from "./handlers/onboarding";
+import { registerCampaignWizard } from "./handlers/campaign-wizard";
 
 const token = process.env.TELEGRAM_BOT_TOKEN;
 
@@ -27,7 +29,10 @@ bot.use(async (ctx, next) => {
 
 registerOnboardingHandlers(bot);
 registerDispatchHandlers(bot);
+registerCampaignWizard(bot);
 registerHandoffHandlers(bot);
+registerHuntHandlers(bot);
+registerKeyboardHandlers(bot);
 
 bot.catch((err) => {
   const grammyErr = err.error as { error_code?: number; description?: string } | undefined;

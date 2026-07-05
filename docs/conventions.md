@@ -24,6 +24,7 @@ apps/website/     marketing + /solo + /admin
 apps/backend/     API orchestrator
 apps/bot/         Telegram thin UI
 packages/shared/  types, API contracts (only cross-app import)
+packages/email-templates/  React Email templates + render helpers for Resend
 ```
 
 Extension lives in separate repo `haulbot-extension/`.

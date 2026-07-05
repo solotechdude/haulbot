@@ -1,11 +1,13 @@
-import { type Bot } from "grammy";
+import { type Bot, type Context } from "grammy";
 import { formatRouteLabel } from "@haulbot/shared";
 import * as api from "../api";
 import { formatReadiness, readinessFromPreset } from "../format";
 import { requireLinkedCallbackUser } from "../linked-user";
 import { parseHandoffCriteria } from "../parse-handoff-criteria";
 import { parseReadinessText } from "../parse-readiness";
-import { getSession } from "../session";
+import { getSession, type CampaignDraft } from "../session";
+import { startCampaignWizard } from "./campaign-wizard";
+import type { EquipmentMain } from "@haulbot/shared";
 
 function formatDraftLine(handoff: {
   deliveryCity: string;
@@ -23,26 +25,59 @@ function formatDraftLine(handoff: {
   return `${formatRouteLabel(o, d)}${rules}`;
 }
 
-async function confirmHandoffComplete(
-  reply: (text: string) => Promise<unknown>,
+async function tryDeleteUserMessage(ctx: Context): Promise<void> {
+  const chatId = ctx.chat?.id;
+  if (!chatId || !ctx.message) return;
+  try {
+    await ctx.api.deleteMessage(chatId, ctx.message.message_id);
+  } catch {
+    // ignore
+  }
+}
+
+async function armOrShiftHandoff(
+  ctx: Context,
   userId: string,
   readinessWindow: string,
 ): Promise<boolean> {
-  try {
-    const result = await api.completeHandoff(userId, readinessWindow);
-    const leg = result.activeLeg;
-    await reply(
-      `Next leg queued: ${formatRouteLabel(leg.searchCriteria.origin ?? "?", leg.searchCriteria.destination ?? leg.searchCriteria.origin ?? "?")}\n` +
-        `Hard rules: $${leg.hardRules.minRate}/mi min, $${leg.hardRules.minPayout} min payout\n` +
-        `Pickup ready: ${formatReadiness(readinessWindow)}\n` +
-        `Use /complete on your current trip when done — agent searches after that at pickup time.\n\n` +
-        `If you reload the extension, send /campaign again and tap Book now to re-arm.`,
-    );
-    return true;
-  } catch {
-    await reply("Handoff expired. Use /campaign to set your next leg.");
-    return false;
+  const { dispatch, handoff } = await api.getDispatchStatus(userId);
+
+  if (handoff) {
+    try {
+      await api.completeHandoff(userId, readinessWindow);
+      await ctx.answerCallbackQuery({
+        text: `Searching — pickup ${formatReadiness(readinessWindow)}`,
+      });
+      void api.syncDispatchUi(userId);
+      return true;
+    } catch (err) {
+      const msg = (err as Error).message;
+      if (msg.includes("NEXT_LEG_FULL")) {
+        await ctx.answerCallbackQuery({ text: "Next leg already booked" });
+      } else {
+        await ctx.answerCallbackQuery({ text: "Handoff expired" });
+      }
+      void api.syncDispatchUi(userId);
+      return false;
+    }
   }
+
+  if (dispatch.activeLeg) {
+    try {
+      const result = await api.shiftHuntPickupTo(userId, readinessWindow);
+      await ctx.answerCallbackQuery({
+        text: `Pickup ${formatReadiness(result.readinessWindow)}`,
+      });
+      void api.syncDispatchUi(userId);
+      return true;
+    } catch {
+      await ctx.answerCallbackQuery({ text: "No active hunt" });
+      return false;
+    }
+  }
+
+  await ctx.answerCallbackQuery({ text: "No pending handoff" });
+  return false;
 }
 
 export function registerHandoffHandlers(bot: Bot): void {
@@ -54,30 +89,77 @@ export function registerHandoffHandlers(bot: Bot): void {
     const action = ctx.callbackQuery.data.replace("handoff:", "");
 
     if (action === "skip") {
+      const { dispatch } = await api.getDispatchStatus(userId);
+      if (dispatch.activeLeg) {
+        await ctx.answerCallbackQuery();
+        await api.promptCancelHunt(userId);
+        return;
+      }
       await api.dismissHandoff(userId);
-      const session = getSession(chatId);
-      delete session.step;
-      await ctx.reply("Next leg not scheduled. Use /campaign when you're ready.");
+      await ctx.answerCallbackQuery({ text: "Next leg canceled" });
+      void api.syncDispatchUi(userId);
+      return;
+    }
+
+    if (action === "skip:yes") {
+      try {
+        await api.cancelHunt(userId);
+      } catch {
+        await api.dismissHandoff(userId);
+      }
+      await api.clearDashboardPrompts(userId);
+      await ctx.answerCallbackQuery({ text: "Canceled" });
+      void api.syncDispatchUi(userId);
+      return;
+    }
+
+    if (action === "skip:no") {
+      await ctx.answerCallbackQuery({ text: "OK" });
+      return;
+    }
+
+    if (action === "wizard") {
+      await ctx.answerCallbackQuery();
+      const { handoff, dispatch } = await api.getDispatchStatus(userId);
+      const leg = dispatch.activeLeg;
+      const sc = handoff?.draftNextLeg.searchCriteria ?? leg?.searchCriteria;
+      const hr = handoff?.draftNextLeg.hardRules ?? leg?.hardRules;
+      if (!sc || !hr?.minRate || !hr?.minPayout) {
+        await ctx.answerCallbackQuery({ text: "Use Start search" });
+        return;
+      }
+      const origin = sc.origin ?? handoff?.deliveryCity ?? "";
+      const prefill: Partial<CampaignDraft> = {
+        origins: sc.origins?.length ? [...sc.origins] : origin ? [origin] : [],
+        destination: sc.destination ?? origin,
+        minRate: hr.minRate,
+        minPayout: hr.minPayout,
+        radius: sc.radius,
+        destinationRadius: sc.destinationRadius,
+        equipment: sc.equipment
+          ? { main: sc.equipment.main as EquipmentMain, subs: [...sc.equipment.subs] }
+          : undefined,
+        workTypes: sc.workTypes,
+        loadTypes: sc.loadTypes,
+      };
+      await startCampaignWizard(ctx, userId, {
+        prefill,
+        startStep: "review",
+        defaults: dispatch.lastCampaignDefaults ?? null,
+      });
       return;
     }
 
     if (action === "tune") {
       const { handoff } = await api.getDispatchStatus(userId);
       if (!handoff) {
-        await ctx.reply("No pending handoff. Use /campaign after your trip.");
+        await ctx.answerCallbackQuery({ text: "Cancel hunt first to reconfigure" });
         return;
       }
       const session = getSession(chatId);
       session.userId = userId;
       session.step = "handoff_criteria_custom";
-      await ctx.reply(
-        `Edit next leg route/rules.\nCurrent: ${formatDraftLine(handoff)}\n\n` +
-          "Reply with:\n" +
-          "• DESTINATION (or anywhere)\n" +
-          "• ORIGIN minRate minPayout\n" +
-          "• ORIGIN minRate minPayout DESTINATION\n\n" +
-          "Examples:\nanywhere\nBRAMPTON 3 200\nBRAMPTON 3 200 ATL",
-      );
+      await ctx.answerCallbackQuery({ text: "Reply with route/rules" });
       return;
     }
 
@@ -85,21 +167,19 @@ export function registerHandoffHandlers(bot: Bot): void {
       const session = getSession(chatId);
       session.userId = userId;
       session.step = "handoff_readiness_custom";
-      await ctx.reply(
-        "When do you want your next load?\n\nExamples:\n• Jun 25 8am\n• tomorrow 6pm\n• +2 hours\n• now",
-      );
+      await ctx.answerCallbackQuery({ text: "Reply with pickup time" });
       return;
     }
 
     const readinessWindow = readinessFromPreset(action);
     if (!readinessWindow) {
-      await ctx.reply("Unknown option. Tap a button on the book message or use Custom time.");
+      await ctx.answerCallbackQuery({ text: "Unknown option" });
       return;
     }
 
     const session = getSession(chatId);
     delete session.step;
-    await confirmHandoffComplete((t) => ctx.reply(t), userId, readinessWindow);
+    await armOrShiftHandoff(ctx, userId, readinessWindow);
   });
 
   bot.on("message:text", async (ctx, next) => {
@@ -112,7 +192,7 @@ export function registerHandoffHandlers(bot: Bot): void {
       const { handoff } = await api.getDispatchStatus(session.userId);
       if (!handoff) {
         delete session.step;
-        await ctx.reply("Handoff expired. Use /campaign to set your next leg.");
+        await ctx.reply("Handoff expired. Use Start search.");
         return;
       }
 
@@ -121,20 +201,18 @@ export function registerHandoffHandlers(bot: Bot): void {
         handoff.draftNextLeg.searchCriteria.origin ?? handoff.deliveryCity,
       );
       if (!parsed) {
-        await ctx.reply("Could not parse that. Try: anywhere, ATL, or BRAMPTON 3 200");
+        await ctx.reply("Try: anywhere, ATL, or BRAMPTON 3 200");
         return;
       }
 
       try {
-        const result = await api.updateHandoffDraft(session.userId, parsed);
+        await api.updateHandoffDraft(session.userId, parsed);
         delete session.step;
-        await ctx.reply(
-          `Next leg updated: ${formatDraftLine(result.handoff)}\n\n` +
-            "Tap a pickup time on the book message (+1h, +3h, Custom time…).",
-        );
+        await tryDeleteUserMessage(ctx);
+        void api.syncDispatchUi(session.userId);
       } catch {
         delete session.step;
-        await ctx.reply("Handoff expired. Use /campaign to set your next leg.");
+        await ctx.reply("Handoff expired. Use Start search.");
       }
       return;
     }
@@ -145,13 +223,14 @@ export function registerHandoffHandlers(bot: Bot): void {
 
     const iso = parseReadinessText(ctx.message.text);
     if (!iso) {
-      await ctx.reply("Could not parse that time. Try: Jun 25 8am, tomorrow 6pm, +2 hours, or now");
+      await ctx.reply("Try: Jun 25 8am, tomorrow 6pm, +2 hours, or now");
       return;
     }
 
     const userId = session.userId;
     delete session.step;
-    await confirmHandoffComplete((t) => ctx.reply(t), userId, iso);
+    await tryDeleteUserMessage(ctx);
+    await armOrShiftHandoff(ctx, userId, iso);
   });
 }
 
@@ -163,5 +242,5 @@ export function handoffStatusLine(handoff: {
   };
 } | null | undefined): string {
   if (!handoff) return "";
-  return `\nPending handoff: ${formatDraftLine(handoff)} (edit via book message buttons)`;
+  return `\nPending handoff: ${formatDraftLine(handoff)}`;
 }

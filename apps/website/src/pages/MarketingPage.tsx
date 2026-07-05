@@ -1,5 +1,7 @@
 import { useState } from "react";
+import { heroChat, type MarketingChatMessage } from "@haulbot/shared";
 import { SiteLayout } from "../components/SiteLayout";
+import { HeroDemoVideo } from "../components/HeroDemoVideo";
 import { Button } from "../components/ui/Button";
 import "../components/ui/Button.css";
 import "./MarketingPage.css";
@@ -17,13 +19,7 @@ async function startCheckout(email: string): Promise<string> {
   return data.url;
 }
 
-interface ChatMessage {
-  from: "driver" | "bot";
-  text: string;
-  mono?: boolean;
-  buttons?: string[];
-  time: string;
-}
+type ChatMessage = MarketingChatMessage;
 
 function DoubleCheck() {
   return (
@@ -102,26 +98,6 @@ function ChatMock({ title, messages }: { title?: string; messages: ChatMessage[]
     </div>
   );
 }
-
-const heroChat: ChatMessage[] = [
-  { from: "driver", text: "/campaign DFW 2.5 800", mono: true, time: "3:41 PM" },
-  {
-    from: "bot",
-    text: "Campaign: DFW → anywhere\nMin $2.50/mi · Min $800 payout · 50 mi radius",
-    buttons: ["Start searching", "Add filters"],
-    time: "3:41 PM",
-  },
-  {
-    from: "bot",
-    text: "Agent armed — scanning loads…\nLast scan (3:42 PM): 12 loads, no match yet",
-    time: "3:42 PM",
-  },
-  {
-    from: "bot",
-    text: "Load booked.\nDFW → ATL · $850 ($3.10/mi)\nAssign driver in Relay when ready.",
-    time: "3:58 PM",
-  },
-];
 
 const goalChat: ChatMessage[] = [
   { from: "driver", text: "/goal $8k this week", mono: true, time: "9:02 AM" },
@@ -207,76 +183,6 @@ const steps = [
   },
 ];
 
-type ProtectionIcon = "environment" | "pace" | "rules" | "control";
-
-const protections: { icon: ProtectionIcon; title: string; body: string }[] = [
-  {
-    icon: "environment",
-    title: "Your account stays private",
-    body: "Your Relay access stays yours alone — kept private and only ever used to work on your behalf.",
-  },
-  {
-    icon: "pace",
-    title: "Works at a human pace",
-    body: "The agent checks the board on a natural rhythm and eases off when Relay is busy. No hammering, no floods.",
-  },
-  {
-    icon: "rules",
-    title: "Never books below your rules",
-    body: "You set your minimum rate and payout. Loads below them are never booked — no exceptions.",
-  },
-  {
-    icon: "control",
-    title: "You're always in control",
-    body: "Pause or resume with one message. Nothing gets booked while you're paused.",
-  },
-];
-
-function ProtectIcon({ name }: { name: ProtectionIcon }) {
-  const common = {
-    viewBox: "0 0 24 24",
-    fill: "none",
-    stroke: "currentColor",
-    strokeWidth: "1.6",
-    strokeLinecap: "round" as const,
-    strokeLinejoin: "round" as const,
-    "aria-hidden": true,
-  };
-  switch (name) {
-    case "environment":
-      return (
-        <svg {...common}>
-          <path d="M12 3 20 6.4v5.1c0 4.5-3.2 7.3-8 8.9-4.8-1.6-8-4.4-8-8.9V6.4L12 3Z" />
-          <rect x="8.4" y="9.2" width="7.2" height="6" rx="1.2" />
-        </svg>
-      );
-    case "pace":
-      return (
-        <svg {...common}>
-          <path d="M4 16a8 8 0 0 1 16 0" />
-          <path d="M4 16h16" />
-          <path d="M12 16l4-3.4" />
-          <path d="M12 16h.01" />
-        </svg>
-      );
-    case "rules":
-      return (
-        <svg {...common}>
-          <path d="M12 3 20 6.4v5.1c0 4.5-3.2 7.3-8 8.9-4.8-1.6-8-4.4-8-8.9V6.4L12 3Z" />
-          <path d="m8.8 11.8 2.1 2.1 4.3-4.6" />
-        </svg>
-      );
-    case "control":
-      return (
-        <svg {...common}>
-          <circle cx="12" cy="12" r="9" />
-          <path d="M10 9v6" />
-          <path d="M14 9v6" />
-        </svg>
-      );
-  }
-}
-
 function scrollToId(id: string) {
   document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
 }
@@ -350,7 +256,15 @@ export function MarketingPage() {
             </ul>
           </div>
           <div className="hero__demo">
-            <ChatMock title="Starting a campaign and getting a load booked" messages={heroChat} />
+            <HeroDemoVideo
+              title="Starting a campaign and getting a load booked"
+              fallback={
+                <ChatMock
+                  title="Starting a campaign and getting a load booked"
+                  messages={heroChat}
+                />
+              }
+            />
           </div>
         </section>
 
@@ -411,33 +325,6 @@ export function MarketingPage() {
           </ol>
         </section>
 
-        <section className="protect">
-          <div className="protect__head">
-            <p className="section__eyebrow">
-              <span className="section__eyebrow-tick" aria-hidden="true" />
-              <span className="section__eyebrow-num">03</span> — Built for trust
-            </p>
-            <h2 className="section__title">Built to protect your account.</h2>
-            <p className="section__lead">
-              Your Amazon Relay account stays yours. Everything the agent does is built to keep it
-              safe.
-            </p>
-          </div>
-          <div className="protect__grid">
-            {protections.map((p) => (
-              <div key={p.title} className="protect__item">
-                <span className="protect__icon" aria-hidden="true">
-                  <ProtectIcon name={p.icon} />
-                </span>
-                <div className="protect__copy">
-                  <h3 className="protect__title">{p.title}</h3>
-                  <p className="protect__body">{p.body}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-
         <section className="pricing" id="pricing">
           <div className="pricing__card">
             <span className="pricing__badge">Everything included</span>
@@ -484,19 +371,6 @@ export function MarketingPage() {
             <p className="pricing__footnote">
               Already subscribed? <a href="/solo">Open your portal</a> to finish setup.
             </p>
-          </div>
-        </section>
-
-        <section className="cta">
-          <div className="cta__inner">
-            <h2 className="cta__title">Get your dispatcher on the road.</h2>
-            <p className="cta__sub">Set your rules once. Let the agent book while you drive.</p>
-            <div className="cta__actions">
-              <Button variant="primary" onClick={() => scrollToId("pricing")}>
-                Get started — $199/mo
-              </Button>
-            </div>
-            <p className="cta__reassure">No contract · Cancel anytime</p>
           </div>
         </section>
 

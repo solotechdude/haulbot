@@ -1,4 +1,4 @@
-import type { ActiveLeg, Commitment, DispatchState } from "@haulbot/shared";
+import type { ActiveLeg, Commitment, DispatchState, LastCampaignDefaults } from "@haulbot/shared";
 import { DEFAULT_REFRESH_POLICY } from "@haulbot/shared";
 import { fetchLaneInsights, postingWindowsToHotWindows } from "../analytics/engine-client";
 import { getDispatchState, upsertDispatchState } from "../db";
@@ -39,6 +39,7 @@ export async function armActiveLeg(
   state.paused = false;
   state.armedAt = now;
   state.watchdogAlert = null;
+  state.lastCampaignDefaults = extractLastCampaignDefaults(activeLeg);
   state.updatedAt = now;
 
   // Market Intelligence → refresh hot windows for this lane (best effort)
@@ -56,5 +57,22 @@ export async function armActiveLeg(
   await upsertDispatchState(state);
   await dismissHandoff(userId);
 
+  const { ensureDispatchDashboardPin } = await import("../telegram/dashboard-sync");
+  await ensureDispatchDashboardPin(userId);
+
   return { ok: true, state };
+}
+
+function extractLastCampaignDefaults(activeLeg: ActiveLeg): LastCampaignDefaults {
+  const sc = activeLeg.searchCriteria;
+  const hr = activeLeg.hardRules;
+  return {
+    radius: sc.radius,
+    destinationRadius: sc.destinationRadius,
+    equipment: sc.equipment ? { ...sc.equipment, subs: [...sc.equipment.subs] } : undefined,
+    minRate: hr.minRate,
+    minPayout: hr.minPayout,
+    workTypes: sc.workTypes ? [...sc.workTypes] : undefined,
+    loadTypes: sc.loadTypes ? [...sc.loadTypes] : undefined,
+  };
 }

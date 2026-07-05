@@ -1,14 +1,25 @@
 import { Bot } from "grammy";
 import * as api from "../api";
 import { clearSession, getSession } from "../session";
+import { welcomeLinkedUser } from "./keyboard";
+
+const PORTAL_URL = process.env.WEBSITE_URL?.replace(/\/$/, "") ?? "https://haulbot.online/solo";
+
+async function resolveLinkedUserId(chatId: string): Promise<string | null | "unavailable"> {
+  try {
+    return await api.getUserIdByChat(chatId);
+  } catch {
+    return "unavailable";
+  }
+}
 
 export function registerOnboardingHandlers(bot: Bot): void {
   bot.command("start", async (ctx) => {
     const payload = ctx.match?.trim() ?? "";
+    const chatId = String(ctx.chat!.id);
 
     if (payload.startsWith("auth_")) {
       const token = payload.slice("auth_".length);
-      const chatId = String(ctx.chat.id);
       const username = ctx.from?.username;
 
       try {
@@ -17,24 +28,49 @@ export function registerOnboardingHandlers(bot: Bot): void {
           telegramChatId: chatId,
           telegramUsername: username,
         });
-        clearSession(ctx.chat.id);
-        await ctx.reply(
-          "Telegram connected to your Haulbot account.\n\nNext: /connect_relay to link your Amazon Relay credentials.",
-        );
+        clearSession(ctx.chat!.id);
+        await welcomeLinkedUser(ctx, userId, { firstConnect: true });
         console.log("[bot] linked", userId, chatId);
-      } catch {
-        await ctx.reply("This link is invalid or expired. Open /solo and tap Connect Telegram to get a fresh link.");
+      } catch (err) {
+        const code = (err as Error).message;
+        if (code === "CHAT_LINKED_TO_OTHER") {
+          await ctx.reply(
+            "This Telegram account is already linked to a different Haulbot subscriber.\n\n" +
+              `Sign in at ${PORTAL_URL} with your own account, then tap Connect Telegram.`,
+          );
+          return;
+        }
+        if (code === "INVALID_TOKEN") {
+          await ctx.reply(
+            "This link is invalid or expired.\n\n" +
+              `Open ${PORTAL_URL} and tap Connect Telegram to get a fresh link.`,
+          );
+          return;
+        }
+        await ctx.reply("Could not connect Telegram. Try again from your subscriber portal.");
       }
       return;
     }
 
+    const linked = await resolveLinkedUserId(chatId);
+    if (linked === "unavailable") {
+      await ctx.reply("Backend unavailable. Try /start again in a moment.");
+      return;
+    }
+    if (linked) {
+      clearSession(ctx.chat!.id);
+      await welcomeLinkedUser(ctx, linked);
+      return;
+    }
+
     await ctx.reply(
-      "Welcome to Haulbot.\n\nOpen your Subscriber Portal at haulbot.online/solo and tap Connect Telegram to link this chat.",
+      "Welcome to Haulbot.\n\n" +
+        `Open your Subscriber Portal at ${PORTAL_URL} and tap Connect Telegram to link this chat.`,
     );
   });
 
   bot.command("connect_relay", async (ctx) => {
-    const chatId = String(ctx.chat.id);
+    const chatId = String(ctx.chat!.id);
     let userId: string | null;
     try {
       userId = await api.getUserIdByChat(chatId);
@@ -45,12 +81,12 @@ export function registerOnboardingHandlers(bot: Bot): void {
 
     if (!userId) {
       await ctx.reply(
-        "This Telegram chat isn't linked yet.\n\nOpen /solo → tap Connect Telegram → press Start in Telegram. Then run /connect_relay again.",
+        `This Telegram chat isn't linked yet.\n\nOpen ${PORTAL_URL} → tap Connect Telegram → press Start in Telegram. Then run /connect_relay again.`,
       );
       return;
     }
 
-    const session = getSession(ctx.chat.id);
+    const session = getSession(ctx.chat!.id);
     session.userId = userId;
     session.step = "await_relay_email";
     session.relayEmail = undefined;
@@ -60,7 +96,7 @@ export function registerOnboardingHandlers(bot: Bot): void {
 
   bot.command("2fa", async (ctx) => {
     const code = ctx.match?.trim();
-    const chatId = String(ctx.chat.id);
+    const chatId = String(ctx.chat!.id);
 
     if (!code) {
       await ctx.reply("Usage: /2fa 123456");
@@ -77,7 +113,7 @@ export function registerOnboardingHandlers(bot: Bot): void {
 
     if (!userId) {
       await ctx.reply(
-        "This Telegram chat isn't linked yet.\n\nOpen /solo → tap Connect Telegram → press Start in Telegram. Then run /connect_relay again.",
+        `This Telegram chat isn't linked yet.\n\nOpen ${PORTAL_URL} → tap Connect Telegram → press Start in Telegram.`,
       );
       return;
     }
@@ -93,8 +129,8 @@ export function registerOnboardingHandlers(bot: Bot): void {
   bot.on("message:text", async (ctx, next) => {
     if (ctx.message.text.startsWith("/")) return await next();
 
-    const session = getSession(ctx.chat.id);
-    if (!session.step || !session.userId) return;
+    const session = getSession(ctx.chat!.id);
+    if (!session.step || !session.userId) return await next();
 
     const text = ctx.message.text.trim();
 
@@ -112,7 +148,7 @@ export function registerOnboardingHandlers(bot: Bot): void {
     if (session.step === "await_relay_password" && session.relayEmail) {
       try {
         const result = await api.storeRelayCredentials(session.userId, session.relayEmail, text);
-        clearSession(ctx.chat.id);
+        clearSession(ctx.chat!.id);
 
         if (result.require2fa) {
           await ctx.reply(
@@ -124,9 +160,12 @@ export function registerOnboardingHandlers(bot: Bot): void {
           );
         }
       } catch {
-        clearSession(ctx.chat.id);
+        clearSession(ctx.chat!.id);
         await ctx.reply("Could not save credentials. Run /connect_relay to try again.");
       }
+      return;
     }
+
+    return await next();
   });
 }

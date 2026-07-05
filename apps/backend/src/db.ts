@@ -63,6 +63,7 @@ export async function ensureIndexes(): Promise<void> {
   await db.collection("subscriptions").createIndex({ userId: 1 }, { unique: true });
   await db.collection("users").createIndex({ id: 1 }, { unique: true });
   await db.collection("users").createIndex({ email: 1 }, { unique: true, sparse: true });
+  await db.collection("users").createIndex({ magicLinkTokenHash: 1 }, { sparse: true });
   await db.collection("provisioned_environments").createIndex({ userId: 1 }, { unique: true });
   await db.collection("telegram_links").createIndex({ userId: 1 }, { unique: true });
   await db.collection("telegram_links").createIndex({ telegramChatId: 1 }, { unique: true });

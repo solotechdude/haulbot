@@ -1,0 +1,244 @@
+# Haulbot — DigitalOcean App Platform spec
+#
+# Deploy:
+#   1. Copy .do/env.production.local.yaml.example → .do/env.production.local.yaml
+#   2. Fill secrets in env.production.local.yaml (gitignored)
+#   3. doctl apps create --spec .do/app.yaml
+#      — or update an existing app: doctl apps update <app-id> --spec .do/app.yaml
+#
+# DNS (Porkbun / DO):
+#   haulbot.online      → App default ingress (website + /api BFF)
+#   api.haulbot.online  → Same app (backend API + Telegram webhook)
+#
+# After first deploy, set Stripe webhook to:
+#   https://api.haulbot.online/v1/webhooks/stripe
+
+name: haulbot
+region: nyc
+
+domains:
+  - domain: haulbot.online
+    type: PRIMARY
+  - domain: api.haulbot.online
+    type: ALIAS
+
+# Reuse existing managed MongoDB cluster (same account as SwiftRelay).
+# Override MONGODB_URI in env.production.local.yaml if you use a different cluster/db name.
+databases:
+  - name: mongodb
+    engine: MONGODB
+    production: true
+    cluster_name: db-mongodb-nyc1-37383
+
+# Shared production env — inherited by all components unless overridden.
+envs:
+  - key: NODE_ENV
+    value: production
+    scope: RUN_AND_BUILD_TIME
+
+  # --- Public URLs ---
+  - key: WEBSITE_URL
+    value: https://haulbot.online
+    scope: RUN_AND_BUILD_TIME
+  - key: SOLO_API_ORIGIN
+    value: https://api.haulbot.online
+    scope: RUN_TIME
+  - key: CORS_ORIGINS
+    value: https://haulbot.online
+    scope: RUN_TIME
+
+  # --- Telegram ---
+  - key: TELEGRAM_BOT_USERNAME
+    value: agent_haulbot
+    scope: RUN_AND_BUILD_TIME
+  - key: TELEGRAM_WEBHOOK_URL
+    value: https://api.haulbot.online/telegram/webhook
+    scope: RUN_TIME
+  - key: TELEGRAM_MINI_APP_URL
+    value: https://haulbot.online/telegram/location.html
+    scope: RUN_TIME
+  - key: BOT_PORT
+    value: "8081"
+    scope: RUN_TIME
+
+  # --- Email ---
+  - key: EMAIL_FROM
+    value: Haulbot <login@haulbot.online>
+    scope: RUN_TIME
+
+  # --- Billing (public key is baked into the website at build time) ---
+  - key: VITE_TELEGRAM_BOT_USERNAME
+    value: agent_haulbot
+    scope: BUILD_TIME
+  - key: VITE_GA_MEASUREMENT_ID
+    value: G-YXZQMDJX8D
+    scope: BUILD_TIME
+
+  # --- Analytics / briefing ---
+  - key: BRIEFING_UTC_HOUR
+    value: "12"
+    scope: RUN_TIME
+  - key: VAULT_KV_MOUNT
+    value: secret
+    scope: RUN_TIME
+  - key: AWS_REGION
+    value: us-east-1
+    scope: RUN_TIME
+  - key: RELAY_REQUIRE_2FA
+    value: "false"
+    scope: RUN_TIME
+
+  # --- Database (injected from attached cluster; override in local secrets file if needed) ---
+  - key: MONGODB_URI
+    value: ${mongodb.MONGODB_URI}
+    scope: RUN_TIME
+
+  # --- Secrets (set values in .do/env.production.local.yaml or DO dashboard) ---
+  - key: SESSION_SECRET
+    scope: RUN_TIME
+    type: SECRET
+  - key: ADMIN_TOKEN
+    scope: RUN_TIME
+    type: SECRET
+  - key: DISPATCHER_SERVICE_TOKEN
+    scope: RUN_TIME
+    type: SECRET
+  - key: EXTENSION_SERVICE_TOKEN
+    scope: RUN_TIME
+    type: SECRET
+  - key: TELEGRAM_BOT_TOKEN
+    scope: RUN_TIME
+    type: SECRET
+  - key: TELEGRAM_WEBHOOK_SECRET
+    scope: RUN_TIME
+    type: SECRET
+  - key: STRIPE_SECRET_KEY
+    scope: RUN_TIME
+    type: SECRET
+  - key: STRIPE_WEBHOOK_SECRET
+    scope: RUN_TIME
+    type: SECRET
+  - key: STRIPE_PRICE_ID
+    scope: RUN_TIME
+    type: SECRET
+  - key: STRIPE_PUBLISHABLE_KEY
+    scope: RUN_AND_BUILD_TIME
+    type: SECRET
+  - key: VITE_STRIPE_PUBLISHABLE_KEY
+    scope: BUILD_TIME
+    type: SECRET
+  - key: RESEND_API_KEY
+    scope: RUN_TIME
+    type: SECRET
+  - key: ANALYTICS_ENGINE_URL
+    scope: RUN_TIME
+    type: SECRET
+  - key: ANALYTICS_ENGINE_TOKEN
+    scope: RUN_TIME
+    type: SECRET
+  - key: BRIEFING_ENABLED
+    scope: RUN_TIME
+    type: SECRET
+  - key: VAULT_ADDR
+    scope: RUN_TIME
+    type: SECRET
+  - key: VAULT_TOKEN
+    scope: RUN_TIME
+    type: SECRET
+  - key: PROVISIONER
+    scope: RUN_TIME
+    type: SECRET
+  - key: WSW_BROWSER_SETTINGS_ARN
+    scope: RUN_TIME
+    type: SECRET
+  - key: WSW_NETWORK_SETTINGS_ARN
+    scope: RUN_TIME
+    type: SECRET
+  - key: WSW_USER_SETTINGS_ARN
+    scope: RUN_TIME
+    type: SECRET
+
+services:
+  - name: backend
+    github:
+      repo: solotechdude/haulbot
+      branch: cursor/production-readiness-e0ba
+      deploy_on_push: true
+    build_command: bun install
+    run_command: bun run --filter @haulbot/backend start:prod
+    environment_slug: bun
+    instance_size_slug: basic-xxs
+    instance_count: 1
+    http_port: 8080
+    health_check:
+      initial_delay_seconds: 15
+      period_seconds: 30
+      timeout_seconds: 5
+      http_path: /health
+
+  - name: bot
+    github:
+      repo: solotechdude/haulbot
+      branch: cursor/production-readiness-e0ba
+      deploy_on_push: true
+    build_command: bun install
+    run_command: bun run --filter @haulbot/bot start:prod
+    environment_slug: bun
+    instance_size_slug: basic-xxs
+    instance_count: 1
+    http_port: 8081
+    health_check:
+      initial_delay_seconds: 15
+      period_seconds: 30
+      timeout_seconds: 5
+      http_path: /health
+
+static_sites:
+  - name: website
+    github:
+      repo: solotechdude/haulbot
+      branch: cursor/production-readiness-e0ba
+      deploy_on_push: true
+    build_command: bun install && bun run --filter @haulbot/website build
+    output_dir: apps/website/dist
+    catchall_document: index.html
+
+ingress:
+  rules:
+    # Telegram webhook → bot service
+    - match:
+        authority:
+          exact: api.haulbot.online
+        path:
+          prefix: /telegram/webhook
+      component:
+        name: bot
+        preserve_path_prefix: true
+
+    # Extension + bot API → backend
+    - match:
+        authority:
+          exact: api.haulbot.online
+        path:
+          prefix: /
+      component:
+        name: backend
+
+    # Browser BFF: /api/* → /v1/* on backend
+    - match:
+        authority:
+          exact: haulbot.online
+        path:
+          prefix: /api
+      component:
+        name: backend
+        rewrite: /v1
+
+    # Marketing + /solo + /admin SPA
+    - match:
+        authority:
+          exact: haulbot.online
+        path:
+          prefix: /
+      component:
+        name: website

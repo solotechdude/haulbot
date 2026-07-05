@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import type { DriverProfile, OnboardingStep } from "@haulbot/shared";
 import { SiteLayout } from "../components/SiteLayout";
+import { TelegramConnectPanel } from "../components/TelegramConnectPanel";
 import { Button } from "../components/ui/Button";
 import "../components/ui/Button.css";
 import "./SoloPortalPage.css";
@@ -19,30 +20,69 @@ const STEP_ORDER: OnboardingStep[] = [
   "active",
 ];
 
+const STEP_HINTS: Record<string, string> = {
+  account: "Your subscription is active — you're ready for the next step.",
+  telegram: "Link Telegram to control dispatch and receive booking updates on the road.",
+  relay: "Send your Amazon Relay credentials in Telegram so the agent can sign in and book.",
+  dispatch: "Once Relay is linked, set your first campaign in Telegram to start dispatch.",
+};
+
 type StepStatus = "done" | "current" | "upcoming";
 
-interface AgentTrip {
+interface PortalActiveTrip {
+  loadId: string;
   origin: string;
   destination: string;
+  routeLabel: string;
   status: string;
+  payout: number | null;
+  ratePerMile: number | null;
   deliveryEta: string | null;
+  driverAction: string;
 }
 
-interface AgentScan {
-  scanned: number;
-  booked: boolean;
-  at: string;
+interface PortalUpcomingLeg {
+  origin: string;
+  destination: string;
+  routeLabel: string;
+  readinessWindow: string | null;
+  minRate: number | null;
+  minPayout: number | null;
+  phase: "queued" | "armed" | "searching" | "booked";
+  loadId?: string | null;
 }
 
 interface AgentStatus {
+  phase: string;
+  phaseDetail: string | null;
+  workState: string | null;
   running: boolean;
   paused: boolean;
-  trip: AgentTrip | null;
-  lastScan: AgentScan | null;
+  trip: PortalActiveTrip | null;
+  upcomingLeg: PortalUpcomingLeg | null;
+  queuedLeg: PortalUpcomingLeg | null;
+  lastScan: { scanned: number; booked: boolean; at: string } | null;
   alert: "reconnect_relay" | "agent_offline" | null;
   heartbeatAt: string | null;
   updatedAt: string | null;
 }
+
+interface BookingHistoryItem {
+  loadId: string;
+  routeLabel: string;
+  payout: number | null;
+  ratePerMile: number | null;
+  bookedAt: string;
+}
+
+interface BookingHistory {
+  items: BookingHistoryItem[];
+  totalCount: number;
+  totalPayout: number;
+  shownCount: number;
+}
+
+type HistoryPeriod = "week" | "month" | "all";
 
 type BillingSummary =
   | { status: "none" }
@@ -54,7 +94,7 @@ type BillingSummary =
     };
 
 const TELEGRAM_BOT_URL = `https://t.me/${
-  import.meta.env.VITE_TELEGRAM_BOT_USERNAME ?? "SwiftRelaySoloBot"
+  import.meta.env.VITE_TELEGRAM_BOT_USERNAME ?? "agent_haulbot"
 }`;
 
 function statusOf(done: boolean, current: boolean): StepStatus {
@@ -69,10 +109,11 @@ function formatTime(iso: string): string {
   return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
 
-function formatEta(iso: string): string {
+function formatCompactEta(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
   return d.toLocaleString([], {
+    weekday: "short",
     month: "short",
     day: "numeric",
     hour: "numeric",
@@ -84,6 +125,74 @@ function formatDate(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+}
+
+function formatTripStatus(status: string): string {
+  return status.replace(/_/g, " ");
+}
+
+type AgentPillState = "blocked" | "offline" | "paused" | "running" | "idle" | "working" | "queued";
+
+function formatMoney(n: number | null | undefined): string {
+  if (n == null) return "—";
+  return `$${n.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+}
+
+function resolveAgentPill(status: AgentStatus | null): { label: string; state: AgentPillState } {
+  if (status?.alert === "reconnect_relay") return { label: "Blocked", state: "blocked" };
+  if (status?.alert === "agent_offline") return { label: "Offline", state: "offline" };
+  if (status?.paused) return { label: "Paused", state: "paused" };
+  if (status?.phase === "Next load queued" || status?.phase === "Searching next leg") {
+    return { label: status.phase, state: "queued" };
+  }
+  if (status?.phase === "Next leg queued" || status?.phase === "Scheduled") {
+    return { label: status.phase, state: "queued" };
+  }
+  if (status?.running) return { label: status.phase, state: "running" };
+  if (
+    status?.phase &&
+    !["Idle", "Trip in progress", "Next leg queued", "Scheduled"].includes(status.phase)
+  ) {
+    return { label: status.phase, state: "working" };
+  }
+  if (status?.phase === "Trip in progress") {
+    return { label: status.phase, state: "queued" };
+  }
+  return { label: status?.phase ?? "Idle", state: "idle" };
+}
+
+function openTelegram() {
+  window.open(TELEGRAM_BOT_URL, "_blank", "noopener");
+}
+
+function formatLastSeen(iso: string | null | undefined): string {
+  if (!iso) return "Never connected";
+  const at = new Date(iso);
+  if (Number.isNaN(at.getTime())) return iso;
+  const diffMs = Date.now() - at.getTime();
+  if (diffMs < 60_000) return "Just now";
+  const diffMin = Math.floor(diffMs / 60_000);
+  if (diffMin < 60) return `${diffMin} min ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr} hr ago`;
+  return at.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function formatLastScanValue(scan: { scanned: number; booked: boolean; at: string }): ReactNode {
+  const time = formatTime(scan.at);
+  if (scan.booked) {
+    return (
+      <>
+        {time} · <span className="portal__scan-booked">booked</span>
+      </>
+    );
+  }
+  return `${time} · ${scan.scanned} loads · no match`;
 }
 
 function resolveInitialUserId(): string | null {
@@ -122,13 +231,49 @@ function CheckIcon() {
   );
 }
 
+function ExternalLinkIcon() {
+  return (
+    <svg className="portal__external-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path
+        d="M6.5 3.5H12.5V9.5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M12.5 3.5L3.5 12.5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function TelegramButton({
+  variant,
+  className,
+}: {
+  variant: "primary" | "secondary";
+  className?: string;
+}) {
+  return (
+    <Button variant={variant} className={className} onClick={openTelegram}>
+      <span className="portal__btn-label-full">Open in Telegram</span>
+      <span className="portal__btn-label-short">Telegram</span>
+      <ExternalLinkIcon />
+    </Button>
+  );
+}
+
 export function SoloPortalPage() {
   const [userId, setUserId] = useState<string | null>(resolveInitialUserId);
   const [profile, setProfile] = useState<DriverProfile | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [telegramUrl, setTelegramUrl] = useState<string | null>(null);
-  const [linking, setLinking] = useState(false);
   const [agentStatus, setAgentStatus] = useState<AgentStatus | null>(null);
+  const [bookingHistory, setBookingHistory] = useState<BookingHistory | null>(null);
+  const [historyPeriod, setHistoryPeriod] = useState<HistoryPeriod>("week");
   const [billing, setBilling] = useState<BillingSummary | null>(null);
   const [billingLoading, setBillingLoading] = useState(false);
   const [billingError, setBillingError] = useState<string | null>(null);
@@ -136,6 +281,7 @@ export function SoloPortalPage() {
 
   const params = new URLSearchParams(window.location.search);
   const checkoutSuccess = params.get("checkout") === "success";
+  const tokenExchanged = useRef(false);
 
   const loadProfile = useCallback(async (id: string) => {
     const res = await fetch("/api/onboarding/status", {
@@ -147,7 +293,10 @@ export function SoloPortalPage() {
 
   useEffect(() => {
     const token = params.get("token");
-    if (!token) return;
+    if (!token || tokenExchanged.current) return;
+    // Single-use tokens must be exchanged exactly once — guard against
+    // StrictMode's double-invoked effects consuming (and burning) the token twice.
+    tokenExchanged.current = true;
 
     verifyToken(token)
       .then((id) => {
@@ -196,18 +345,24 @@ export function SoloPortalPage() {
   }, [userId, loadProfile]);
 
   useEffect(() => {
-    const needsTelegramLink =
-      profile?.onboardingStep === "environment_ready" || profile?.telegramDevStub;
-    if (!userId || !needsTelegramLink) return;
+    if (!userId || profile?.onboardingStep !== "active") return;
 
-    fetch("/api/onboarding/telegram-deeplink", { headers: authHeaders(userId) })
-      .then(async (res) => {
-        if (!res.ok) throw new Error("Failed to get Telegram link");
-        const data = (await res.json()) as { url: string };
-        setTelegramUrl(data.url);
+    let active = true;
+    fetch(`/api/onboarding/booking-history?period=${historyPeriod}&limit=20`, {
+      headers: authHeaders(userId),
+    })
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error("history failed"))))
+      .then((data: BookingHistory) => {
+        if (active) setBookingHistory(data);
       })
-      .catch(() => setTelegramUrl(null));
-  }, [userId, profile?.onboardingStep, profile?.telegramDevStub]);
+      .catch(() => {
+        /* keep last known */
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [userId, profile?.onboardingStep, historyPeriod]);
 
   useEffect(() => {
     if (!userId) return;
@@ -260,24 +415,6 @@ export function SoloPortalPage() {
     }
   }
 
-  async function connectTelegramDevStub() {
-    if (!userId) return;
-    setLinking(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/onboarding/telegram-link", {
-        method: "POST",
-        headers: authHeaders(userId),
-      });
-      if (!res.ok) throw new Error("Failed to connect Telegram");
-      setProfile(await res.json());
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setLinking(false);
-    }
-  }
-
   function signOut() {
     localStorage.removeItem(SESSION_KEY);
     localStorage.removeItem(SESSION_TOKEN_KEY);
@@ -291,22 +428,21 @@ export function SoloPortalPage() {
   const telegramConnected = Boolean(profile?.telegramLinked);
   const relayConnected = step === "relay_ready" || step === "active";
 
-  let agentPillLabel = "Idle";
-  let agentPillMod = "idle";
-  if (agentStatus?.running) {
-    agentPillLabel = "Running";
-    agentPillMod = "running";
-  } else if (agentStatus?.paused) {
-    agentPillLabel = "Paused";
-    agentPillMod = "paused";
-  }
-
+  const agentPill = resolveAgentPill(agentStatus);
   const agentAlertMessage =
     agentStatus?.alert === "reconnect_relay"
       ? "Reconnect Amazon Relay in Telegram"
       : agentStatus?.alert === "agent_offline"
-        ? "Your agent looks offline — open Telegram to check."
+        ? "Agent offline — open Telegram to check"
         : null;
+  const agentAlertKind = agentStatus?.alert ?? null;
+  const lastSeenAt = agentStatus?.heartbeatAt ?? agentStatus?.updatedAt ?? null;
+  const agentStatusDetail =
+    agentStatus?.queuedLeg && agentStatus?.trip
+      ? "Complete current trip in Telegram to activate the queued load."
+      : agentStatus?.upcomingLeg?.phase === "searching" && agentStatus?.trip
+        ? "Agent is searching for your next load while you run the current trip."
+        : agentStatus?.phaseDetail;
 
   const checklist = profile
     ? [
@@ -338,23 +474,17 @@ export function SoloPortalPage() {
       ]
     : [];
 
+  const completedSteps = checklist.filter((item) => item.status === "done").length;
+  const progressPct = checklist.length ? Math.round((completedSteps / checklist.length) * 100) : 0;
+
   function renderStepAction(key: string, status: StepStatus) {
     if (status !== "current") return null;
 
     if (key === "telegram") {
       return (
-        <div className="portal__step-action">
-          {telegramUrl ? (
-            <Button variant="primary" onClick={() => window.open(telegramUrl, "_blank", "noopener")}>
-              Connect Telegram
-            </Button>
-          ) : (
-            <p className="portal__hint">Loading Telegram link…</p>
-          )}
-          {import.meta.env.DEV ? (
-            <Button variant="secondary" disabled={linking} onClick={connectTelegramDevStub}>
-              {linking ? "Connecting…" : "Dev stub (skip Telegram)"}
-            </Button>
+        <div className="portal__stepper-actions portal__stepper-actions--telegram">
+          {userId ? (
+            <TelegramConnectPanel userId={userId} />
           ) : null}
         </div>
       );
@@ -362,13 +492,16 @@ export function SoloPortalPage() {
 
     if (key === "relay") {
       return (
-        <div className="portal__step-action">
-          <p className="portal__hint">
+        <div className="portal__stepper-actions portal__stepper-actions--hint">
+          <p className="portal__stepper-command">
             In Telegram, send{" "}
             <code className="portal__code">
               {step === "relay_2fa_required" ? "/2fa YOUR_CODE" : "/connect_relay"}
             </code>
           </p>
+          <Button variant="secondary" onClick={openTelegram}>
+            Open Telegram
+          </Button>
         </div>
       );
     }
@@ -377,7 +510,7 @@ export function SoloPortalPage() {
   }
 
   return (
-    <SiteLayout>
+    <SiteLayout mainClassName="site__main--portal">
       <div className="portal">
         {checkoutSuccess && !error ? (
           <p className="portal__banner">Payment received. Complete onboarding below.</p>
@@ -400,222 +533,354 @@ export function SoloPortalPage() {
         ) : (
           <>
             {isComplete ? (
-              <section className="portal__card">
-                <p className="portal__eyebrow">
-                  <span className="portal__eyebrow-tick" />
-                  Agent status
-                </p>
-                <div className="portal__glance-head">
-                  <span className={`portal__pill portal__pill--${agentPillMod}`}>
-                    {agentPillLabel}
-                  </span>
-                  <Button
-                    variant="primary"
-                    onClick={() => window.open(TELEGRAM_BOT_URL, "_blank", "noopener")}
-                  >
-                    Open in Telegram
-                  </Button>
+              <section className="portal__card portal__card--agent">
+                <div className="portal__agent-head">
+                  <p className="portal__eyebrow portal__eyebrow--flush">
+                    <span className="portal__eyebrow-tick" />
+                    Agent status
+                  </p>
+                  <TelegramButton variant="secondary" className="portal__agent-cta portal__agent-cta--head" />
                 </div>
 
-                {agentAlertMessage ? (
-                  <div className="portal__alert" role="status">
-                    {agentAlertMessage}
+                {agentAlertKind && agentAlertMessage ? (
+                  <div
+                    className={`portal__agent-status portal__agent-status--${agentAlertKind === "reconnect_relay" ? "blocked" : "offline"}`}
+                    role="status"
+                  >
+                    <span className="portal__agent-status-dot" aria-hidden="true" />
+                    <div className="portal__agent-status-copy">
+                      <span className="portal__agent-status-label">{agentPill.label}</span>
+                      <p className="portal__agent-status-detail">{agentAlertMessage}</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div
+                    className={`portal__agent-status portal__agent-status--${agentPill.state}`}
+                    role="status"
+                  >
+                    <span className="portal__agent-status-dot" aria-hidden="true" />
+                    <div className="portal__agent-status-copy">
+                      <span className="portal__agent-status-label">{agentPill.label}</span>
+                      {agentStatusDetail ? (
+                        <p className="portal__agent-status-detail">{agentStatusDetail}</p>
+                      ) : null}
+                    </div>
+                  </div>
+                )}
+
+                {agentStatus?.trip || agentStatus?.upcomingLeg || agentStatus?.queuedLeg ? (
+                  <div
+                    className={`portal__agent-grid${
+                      [agentStatus?.trip, agentStatus?.upcomingLeg, agentStatus?.queuedLeg].filter(Boolean)
+                        .length > 1
+                        ? " portal__agent-grid--dual"
+                        : ""
+                    }`}
+                  >
+                    {agentStatus?.trip ? (
+                      <article className="portal__load-panel">
+                        <span className="portal__panel-label">Current load</span>
+                        <p className="portal__panel-route">{agentStatus.trip.routeLabel}</p>
+                        <p className="portal__panel-meta">
+                          {formatMoney(agentStatus.trip.payout)}
+                          {agentStatus.trip.ratePerMile != null
+                            ? ` · $${agentStatus.trip.ratePerMile}/mi`
+                            : ""}
+                          {" · "}
+                          <span className="portal__panel-status">
+                            {formatTripStatus(agentStatus.trip.status)}
+                          </span>
+                        </p>
+                        <p className="portal__panel-sub">{agentStatus.trip.loadId}</p>
+                        <p className="portal__panel-hint">{agentStatus.trip.driverAction}</p>
+                      </article>
+                    ) : null}
+
+                    {agentStatus?.upcomingLeg ? (
+                      <article className="portal__load-panel portal__load-panel--next">
+                        <span className="portal__panel-label">Searching</span>
+                        <p className="portal__panel-route">{agentStatus.upcomingLeg.routeLabel}</p>
+                        <p className="portal__panel-meta">
+                          {agentStatus.upcomingLeg.minRate != null &&
+                          agentStatus.upcomingLeg.minPayout != null
+                            ? `$${agentStatus.upcomingLeg.minRate}/mi min · $${agentStatus.upcomingLeg.minPayout} min`
+                            : null}
+                          {agentStatus.upcomingLeg.readinessWindow
+                            ? `${agentStatus.upcomingLeg.minRate != null ? " · " : ""}Pickup ${formatCompactEta(agentStatus.upcomingLeg.readinessWindow)}`
+                            : null}
+                        </p>
+                        <p className="portal__panel-hint portal__panel-hint--muted">
+                          Hunting next load while current trip is active.
+                        </p>
+                      </article>
+                    ) : null}
+
+                    {agentStatus?.queuedLeg ? (
+                      <article className="portal__load-panel portal__load-panel--next">
+                        <span className="portal__panel-label">Queued</span>
+                        <p className="portal__panel-route">{agentStatus.queuedLeg.routeLabel}</p>
+                        <p className="portal__panel-meta">
+                          {agentStatus.queuedLeg.loadId ? `Trip ${agentStatus.queuedLeg.loadId}` : null}
+                          {agentStatus.queuedLeg.readinessWindow
+                            ? ` · Pickup ${formatCompactEta(agentStatus.queuedLeg.readinessWindow)}`
+                            : null}
+                        </p>
+                        <p className="portal__panel-hint portal__panel-hint--muted">
+                          Complete current trip in Telegram to activate.
+                        </p>
+                      </article>
+                    ) : null}
                   </div>
                 ) : null}
 
-                <div className="portal__glance-item">
-                  <span className="portal__glance-label">Active trip</span>
-                  {agentStatus?.trip ? (
-                    <span className="portal__glance-value">
-                      {agentStatus.trip.origin} → {agentStatus.trip.destination}
-                      <span className="portal__glance-meta">
-                        {agentStatus.trip.status}
-                        {agentStatus.trip.deliveryEta
-                          ? ` · ETA ${formatEta(agentStatus.trip.deliveryEta)}`
-                          : ""}
-                      </span>
-                    </span>
-                  ) : (
-                    <span className="portal__glance-value portal__glance-value--muted">
-                      No active trip.
-                    </span>
-                  )}
-                </div>
-
-                <div className="portal__glance-item">
-                  <span className="portal__glance-label">Last activity</span>
-                  {agentStatus?.lastScan ? (
-                    <span className="portal__glance-value">
-                      Last scan {formatTime(agentStatus.lastScan.at)}: {agentStatus.lastScan.scanned}{" "}
-                      loads — {agentStatus.lastScan.booked ? "booked" : "no match"}
-                    </span>
-                  ) : (
-                    <span className="portal__glance-value portal__glance-value--muted">
-                      No recent scans.
-                    </span>
-                  )}
-                </div>
+                <footer className="portal__agent-foot">
+                  <span className="portal__agent-foot-item">
+                    <span className="portal__agent-foot-key">Last scan</span>
+                    {agentStatus?.lastScan ? (
+                      formatLastScanValue(agentStatus.lastScan)
+                    ) : (
+                      <span className="portal__agent-foot-muted">None</span>
+                    )}
+                  </span>
+                  <span className="portal__agent-foot-sep" aria-hidden="true">
+                    ·
+                  </span>
+                  <span className="portal__agent-foot-item">
+                    <span className="portal__agent-foot-key">Last seen</span>
+                    {formatLastSeen(lastSeenAt)}
+                  </span>
+                </footer>
               </section>
-            ) : null}
-
-            {isComplete ? (
-              <div className="portal__card portal__done">
-                <span className="portal__marker portal__marker--done">
-                  <CheckIcon />
-                </span>
-                <div>
-                  <p className="portal__done-title">Setup complete</p>
-                  <p className="portal__hint">
-                    You&apos;re all set — open Telegram to set goals and campaigns.
-                  </p>
-                </div>
-              </div>
             ) : (
-              <div className="portal__card portal__card--feature">
+              <section className="portal__card portal__card--feature portal__onboarding" aria-label="Get started">
                 <p className="portal__eyebrow">
                   <span className="portal__eyebrow-tick" />
                   Get started
                 </p>
-                <h2 className="portal__title">Finish setting up</h2>
-                <ol className="portal__checklist">
-                  {checklist.map((item) => (
+                <div className="portal__onboarding-head">
+                  <p className="portal__onboarding-meta">
+                    {completedSteps} of {checklist.length} complete
+                  </p>
+                  <div
+                    className="portal__progress"
+                    role="progressbar"
+                    aria-valuenow={progressPct}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-label="Onboarding progress"
+                  >
+                    <span className="portal__progress-fill" style={{ width: `${progressPct}%` }} />
+                  </div>
+                </div>
+
+                <ol className="portal__stepper">
+                  {checklist.map((item, index) => (
                     <li
                       key={item.key}
-                      className={`portal__step portal__step--${item.status}`}
+                      className={`portal__stepper-item portal__stepper-item--${item.status}`}
                       aria-current={item.status === "current" ? "step" : undefined}
                     >
-                      <span className={`portal__marker portal__marker--${item.status}`}>
-                        {item.status === "done" ? <CheckIcon /> : null}
-                      </span>
-                      <div className="portal__step-body">
-                        <p className="portal__step-title">{item.title}</p>
-                        {renderStepAction(item.key, item.status)}
+                      <div className="portal__stepper-rail" aria-hidden="true">
+                        <span className={`portal__stepper-marker portal__stepper-marker--${item.status}`}>
+                          {item.status === "done" ? <CheckIcon /> : index + 1}
+                        </span>
+                      </div>
+                      <div className="portal__stepper-body">
+                        <p className="portal__stepper-title">{item.title}</p>
+                        {item.status === "done" ? (
+                          <p className="portal__stepper-status portal__stepper-status--done">Complete</p>
+                        ) : null}
+                        {item.status === "upcoming" ? (
+                          <p className="portal__stepper-status portal__stepper-status--upcoming">Up next</p>
+                        ) : null}
+                        {item.status === "current" ? (
+                          <div className="portal__stepper-panel">
+                            <p className="portal__stepper-hint">{STEP_HINTS[item.key]}</p>
+                            {renderStepAction(item.key, item.status)}
+                          </div>
+                        ) : null}
                       </div>
                     </li>
                   ))}
                 </ol>
-              </div>
+              </section>
             )}
 
-            <div className="portal__card">
-              <p className="portal__eyebrow">
-                <span className="portal__eyebrow-tick" />
-                Connections
-              </p>
-              <div className="portal__row">
-                <span className="portal__row-label">Telegram</span>
-                <span
-                  className={`portal__status ${
-                    telegramConnected ? "portal__status--ok" : "portal__status--pending"
-                  }`}
-                >
-                  {profile.telegramDevStub
-                    ? "Connected (dev stub)"
-                    : telegramConnected
-                      ? "Connected"
-                      : "Not connected"}
-                </span>
-              </div>
-              <div className="portal__row">
-                <span className="portal__row-label">Amazon Relay</span>
-                <span
-                  className={`portal__status ${
-                    relayConnected ? "portal__status--ok" : "portal__status--pending"
-                  }`}
-                >
-                  {relayConnected ? "Connected" : "Action needed — link it from the checklist above"}
-                </span>
-              </div>
-            </div>
+            {isComplete ? (
+              <section className="portal__card portal__card--history">
+                <div className="portal__history-head">
+                  <p className="portal__eyebrow">
+                    <span className="portal__eyebrow-tick" />
+                    Booked loads
+                  </p>
+                  <div className="portal__history-filters" role="tablist" aria-label="History period">
+                    {(["week", "month", "all"] as const).map((p) => (
+                      <button
+                        key={p}
+                        type="button"
+                        role="tab"
+                        aria-selected={historyPeriod === p}
+                        className={`portal__history-filter${historyPeriod === p ? " portal__history-filter--active" : ""}`}
+                        onClick={() => setHistoryPeriod(p)}
+                      >
+                        {p === "week" ? "7 days" : p === "month" ? "30 days" : "All"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
-            <div className="portal__card">
-              <p className="portal__eyebrow">
-                <span className="portal__eyebrow-tick" />
-                Account
-              </p>
-              <div className="portal__row">
-                <span className="portal__row-label">Email</span>
-                <span className="portal__row-value">{profile.email}</span>
-              </div>
-              <div className="portal__account-actions">
-                <Button variant="secondary" onClick={signOut}>
-                  Sign out
-                </Button>
-              </div>
-              <p className="portal__support">
-                Need help? Email{" "}
-                <a href="mailto:support@haulbot.online">support@haulbot.online</a>
-              </p>
-            </div>
-
-            <section className="portal__card">
-              <p className="portal__eyebrow">
-                <span className="portal__eyebrow-tick" />
-                Billing
-              </p>
-              {billing === null ? (
-                billingLoadFailed ? (
-                  <p className="portal__hint">Billing details are unavailable right now.</p>
-                ) : (
-                  <p className="portal__hint">Loading…</p>
-                )
-              ) : billing.status === "none" ? (
-                <>
-                  <p className="portal__message">No active subscription.</p>
-                  <div className="portal__account-actions">
-                    <Button
-                      variant="primary"
-                      onClick={() => {
-                        window.location.href = "/#pricing";
-                      }}
-                    >
-                      Subscribe
-                    </Button>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="portal__row">
-                    <span className="portal__row-label">Plan</span>
-                    <span className="portal__row-value">{billing.plan.toUpperCase()}</span>
-                  </div>
-                  <div className="portal__row">
-                    <span className="portal__row-label">Status</span>
-                    <span
-                      className={`portal__badge portal__badge--${
-                        billing.status === "active"
-                          ? "ok"
-                          : billing.status === "past_due"
-                            ? "warn"
-                            : "muted"
-                      }`}
-                    >
-                      {billing.status === "active"
-                        ? "Active"
-                        : billing.status === "past_due"
-                          ? "Past due"
-                          : "Canceled"}
-                    </span>
-                  </div>
-                  {billing.currentPeriodEnd ? (
-                    <div className="portal__row">
-                      <span className="portal__row-label">
-                        {billing.cancelAtPeriodEnd ? "Cancels on" : "Renews on"}
+                {bookingHistory && bookingHistory.totalCount > 0 ? (
+                  <>
+                    <div className="portal__history-total">
+                      <span className="portal__history-total-label">Total booked</span>
+                      <span className="portal__history-total-value">
+                        {formatMoney(bookingHistory.totalPayout)}
                       </span>
-                      <span className="portal__row-value">
-                        {formatDate(billing.currentPeriodEnd)}
+                      <span className="portal__history-total-meta">
+                        {bookingHistory.totalCount} load{bookingHistory.totalCount === 1 ? "" : "s"}
                       </span>
                     </div>
-                  ) : null}
-                  <div className="portal__account-actions">
-                    <Button variant="primary" disabled={billingLoading} onClick={openBillingPortal}>
-                      {billingLoading ? "Opening…" : "Manage billing"}
-                    </Button>
+                    <ul className="portal__history-list">
+                      {bookingHistory.items.map((item) => (
+                        <li key={item.loadId} className="portal__history-item">
+                          <div className="portal__history-item-main">
+                            <span className="portal__history-route">{item.routeLabel}</span>
+                            <span className="portal__history-id">{item.loadId}</span>
+                          </div>
+                          <div className="portal__history-item-side">
+                            <span className="portal__history-payout">{formatMoney(item.payout)}</span>
+                            <span className="portal__history-date">{formatDate(item.bookedAt)}</span>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                ) : (
+                  <p className="portal__history-empty">No booked loads yet — your first book will show here.</p>
+                )}
+              </section>
+            ) : null}
+
+            {isComplete ? (
+              <section className="portal__card">
+                <p className="portal__eyebrow">
+                  <span className="portal__eyebrow-tick" />
+                  Account
+                </p>
+                <div className="portal__rows">
+                  <div className="portal__row">
+                    <span className="portal__row-label">Telegram</span>
+                    <span
+                      className={`portal__status ${
+                        telegramConnected ? "portal__status--ok" : "portal__status--pending"
+                      }`}
+                    >
+                      {telegramConnected ? "Connected" : "Not connected"}
+                    </span>
                   </div>
-                  {billingError ? <p className="portal__billing-error">{billingError}</p> : null}
-                </>
-              )}
-            </section>
+                  <div className="portal__row">
+                    <span className="portal__row-label">Amazon Relay</span>
+                    <span
+                      className={`portal__status ${
+                        relayConnected ? "portal__status--ok" : "portal__status--pending"
+                      }`}
+                    >
+                      {relayConnected ? "Connected" : "Not connected"}
+                    </span>
+                  </div>
+
+                  <div className="portal__row portal__row--divider">
+                    <span className="portal__row-label">Email</span>
+                    <span className="portal__row-value">{profile.email}</span>
+                  </div>
+
+                  {billing === null ? (
+                    billingLoadFailed ? (
+                      <div className="portal__row">
+                        <span className="portal__row-label">Billing</span>
+                        <span className="portal__row-value portal__row-value--muted">Unavailable</span>
+                      </div>
+                    ) : (
+                      <div className="portal__row">
+                        <span className="portal__row-label">Billing</span>
+                        <span className="portal__row-value portal__row-value--muted">Loading…</span>
+                      </div>
+                    )
+                  ) : billing.status === "none" ? (
+                    <div className="portal__row">
+                      <span className="portal__row-label">Plan</span>
+                      <span className="portal__row-value portal__row-value--muted">No subscription</span>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="portal__row">
+                        <span className="portal__row-label">Plan</span>
+                        <span className="portal__row-value">{billing.plan.toUpperCase()}</span>
+                      </div>
+                      <div className="portal__row">
+                        <span className="portal__row-label">Status</span>
+                        <span
+                          className={`portal__badge portal__badge--${
+                            billing.status === "active"
+                              ? "ok"
+                              : billing.status === "past_due"
+                                ? "warn"
+                                : "muted"
+                          }`}
+                        >
+                          {billing.status === "active"
+                            ? "Active"
+                            : billing.status === "past_due"
+                              ? "Past due"
+                              : "Canceled"}
+                        </span>
+                      </div>
+                      {billing.currentPeriodEnd ? (
+                        <div className="portal__row">
+                          <span className="portal__row-label">
+                            {billing.cancelAtPeriodEnd ? "Cancels on" : "Renews on"}
+                          </span>
+                          <span className="portal__row-value">
+                            {formatDate(billing.currentPeriodEnd)}
+                          </span>
+                        </div>
+                      ) : null}
+                    </>
+                  )}
+
+                  <div className="portal__actions portal__row--divider">
+                    {billing?.status === "none" ? (
+                      <a className="portal__text-action" href="/#pricing">
+                        <span>Subscribe</span>
+                        <span aria-hidden="true">→</span>
+                      </a>
+                    ) : billing ? (
+                      <button
+                        type="button"
+                        className="portal__text-action"
+                        disabled={billingLoading}
+                        onClick={openBillingPortal}
+                      >
+                        <span>{billingLoading ? "Opening…" : "Manage billing"}</span>
+                        <span aria-hidden="true">→</span>
+                      </button>
+                    ) : null}
+                    <button
+                      type="button"
+                      className="portal__text-action portal__text-action--muted"
+                      onClick={signOut}
+                    >
+                      Sign out
+                    </button>
+                    {billingError ? <p className="portal__billing-error">{billingError}</p> : null}
+                    <p className="portal__support">
+                      Need help? Email{" "}
+                      <a href="mailto:support@haulbot.online">support@haulbot.online</a>
+                    </p>
+                  </div>
+                </div>
+              </section>
+            ) : null}
           </>
         )}
       </div>

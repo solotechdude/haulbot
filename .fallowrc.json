@@ -12,13 +12,14 @@
   "boundaries": {
     "zones": [
       { "name": "shared", "patterns": ["packages/shared/**"] },
+      { "name": "email-templates", "patterns": ["packages/email-templates/**"] },
       { "name": "website", "patterns": ["apps/website/**"] },
       { "name": "backend", "patterns": ["apps/backend/**"] },
       { "name": "bot", "patterns": ["apps/bot/**"] }
     ],
     "rules": [
       { "from": "website", "allow": ["shared"] },
-      { "from": "backend", "allow": ["shared"] },
+      { "from": "backend", "allow": ["shared", "email-templates"] },
       { "from": "bot", "allow": ["shared"] },
       { "from": "shared", "allow": [] }
     ]

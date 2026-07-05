@@ -6,8 +6,10 @@ export type {
   DispatchState,
   DriverProfile,
   HardRules,
+  LastCampaignDefaults,
   OnboardingStep,
   PendingAdoption,
+  SavedCampaignPreset,
   SearchCriteria,
 } from "./dispatch";
 export type {
@@ -16,6 +18,25 @@ export type {
   EquipmentSelection,
 } from "./campaign";
 export { DEFAULT_BOOK_PRIORITY, resolveBoardMins } from "./campaign";
+export {
+  DEFAULT_EQUIPMENT_MAIN,
+  DEFAULT_EQUIPMENT_SUBS,
+  DEFAULT_RELAY_RADIUS,
+  EQUIPMENT_MAIN_OPTIONS,
+  EQUIPMENT_SUB_OPTIONS,
+  MAX_ORIGINS,
+  RELAY_ORIGIN_MARKETS,
+  originMarketLabel,
+  sortOriginMarkets,
+  type RelayOriginMarket,
+  RELAY_LOAD_TYPES,
+  RELAY_PAYOUT_CHIPS,
+  RELAY_RADIUS_MILES,
+  RELAY_RATE_CHIPS,
+  RELAY_WORK_TYPES,
+  equipmentMainLabel,
+  normalizeRadiusMiles,
+} from "./relay-filters";
 export type {
   AgentStatus,
   CampaignStatusPin,
@@ -27,6 +48,40 @@ export {
   formatRouteLabel,
   relayWorkStateLabel,
 } from "./agent-status";
+export {
+  buildDashboardInlineKeyboard,
+  buildHandoffInlineKeyboard,
+  buildHuntInlineKeyboard,
+  buildReplyKeyboardCells,
+  buildReplyKeyboardRows,
+  formatDispatchDashboardMessage,
+  isDashboardActive,
+  isHuntingForQueued,
+  resolveHuntPhase,
+  resolveReplyKeyboardState,
+} from "./dispatch-dashboard";
+export type {
+  DispatchDashboardInput,
+  HuntPhase,
+  InlineButton,
+  ReplyKeyboardCell,
+  ReplyKeyboardRow,
+} from "./dispatch-dashboard";
+export {
+  COMPLETE_TRIP_LABEL,
+  LOCATION_MINI_APP_PATH,
+  START_SEARCH_LABEL,
+  locationMiniAppUrl,
+  resolveStartSearchMiniAppUrl,
+} from "./dispatch-dashboard";
+export {
+  isAnywhereDestination,
+  matchesCampaignRoute,
+  normalizeMarketCity,
+  resolveMarketCity,
+  parseCityFromLocationText,
+} from "./market-city";
+export type { CampaignRoute, ParsedRoute } from "./market-city";
 export type {
   DispatchHandoff,
   DispatchPlan,
@@ -58,3 +113,5 @@ export type {
   LoadTelemetryEvent,
   LoadTelemetryKind,
 } from "./telemetry";
+export type { MarketingChatMessage } from "./marketing/hero-chat";
+export { heroChat, heroScanningLine } from "./marketing/hero-chat";

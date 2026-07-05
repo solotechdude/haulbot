@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Haulbot">
+  <rect width="32" height="32" rx="8" fill="#0F766E" />
+  <path
+    d="M10 8h3v6.4h6V8h3v16h-3v-6.4h-6V24h-3z"
+    fill="#ffffff"
+  />
+</svg>

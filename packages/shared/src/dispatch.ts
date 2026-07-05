@@ -6,11 +6,17 @@ export type CommitmentStatus = "booked" | "picked_up" | "delivered" | "canceled"
 
 /** Relay load board filters — what Amazon returns as search results. */
 export interface SearchCriteria {
+  /** Primary origin — alias for origins[0] */
   origin?: string;
+  /** Up to 5 origin markets on Relay */
+  origins?: string[];
   destination?: string;
   radius?: number;
+  destinationRadius?: number;
   heading?: string;
   equipment?: import("./campaign.js").EquipmentSelection;
+  workTypes?: string[];
+  loadTypes?: string[];
   /** Relay UI min $/mi — defaults to Hard Rules min when unset and Wide Net is off */
   boardMinRate?: number;
   /** Relay UI min payout — defaults to Hard Rules min when unset and Wide Net is off */
@@ -44,6 +50,8 @@ export interface Commitment {
   destination: string;
   deliveryEta?: string;
   pickupAt?: string;
+  payout?: number;
+  ratePerMile?: number;
   status: CommitmentStatus;
 }
 
@@ -57,11 +65,37 @@ export interface PendingAdoption {
   source: "relay_ui";
 }
 
+/** Last-used campaign filters — origins excluded (location-specific). */
+export interface LastCampaignDefaults {
+  radius?: number;
+  destinationRadius?: number;
+  equipment?: import("./campaign.js").EquipmentSelection;
+  minRate?: number;
+  minPayout?: number;
+  workTypes?: string[];
+  loadTypes?: string[];
+}
+
+export interface SavedCampaignPreset {
+  name: string;
+  draft: Omit<LastCampaignDefaults, never> & {
+    origins?: string[];
+    destination?: string;
+  };
+  savedAt: string;
+}
+
 export interface DispatchState {
   userId: string;
   paused: boolean;
   activeLeg: ActiveLeg | null;
+  lastCampaignDefaults?: LastCampaignDefaults;
+  savedCampaignPresets?: SavedCampaignPreset[];
   commitment: Commitment | null;
+  /** Next load booked while current trip is still active (max one) */
+  queuedCommitment?: Commitment | null;
+  /** Snapshot for re-offer after driver cancels hunt then /complete */
+  canceledHunt?: ActiveLeg | null;
   pendingAdoption?: PendingAdoption | null;
   /** Trip/order IDs to never prompt as external (agent-booked or user-dismissed) */
   suppressedExternalBookings?: string[];
@@ -83,6 +117,10 @@ export interface DispatchState {
   statusProbeAckedAt?: string | null;
   /** Unresolved agent-health alert raised by the backend watchdog */
   watchdogAlert?: { kind: "offline" | "scan_stalled"; at: string } | null;
+  /** Pinned dashboard UI — avoid extra chat messages for confirmations */
+  uiConfirmComplete?: boolean;
+  uiConfirmCancelHunt?: boolean;
+  uiRehuntOffer?: boolean;
   heartbeatAt?: string;
   updatedAt: string;
 }
@@ -101,7 +139,5 @@ export interface DriverProfile {
   email: string;
   onboardingStep: OnboardingStep;
   telegramLinked: boolean;
-  /** True when linked via local dev stub — real bot commands won't work until re-linked */
-  telegramDevStub?: boolean;
   paused: boolean;
 }
