@@ -8,7 +8,8 @@
 #
 # Pushes to main auto-deploy when github.deploy_on_push is true.
 # Requires DigitalOcean GitHub App access to solotechdude/haulbot (Settings → Source in DO).
-# Fallback: .github/workflows/deploy-production.yml (needs DIGITALOCEAN_ACCESS_TOKEN in GitHub secrets).
+# Pushes to main auto-deploy via github.deploy_on_push in .do/app.yaml.
+# Fallback: .github/workflows/deploy-production.yml (workflow_dispatch; needs DIGITALOCEAN_ACCESS_TOKEN in GitHub secrets).
 #
 # DNS (Porkbun / DO):
 #   haulbot.online      → App default ingress (website + /api BFF)
