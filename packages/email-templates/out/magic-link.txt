@@ -1,0 +1,19 @@
+HHaulbot
+
+
+SIGN IN TO HAULBOT
+
+Use the button below to sign in to your subscriber portal. No password needed — this link signs you in securely.
+
+Sign in __HAULBOT_PORTAL_URL__
+
+This link expires in 15 minutes and can only be used once. If the button doesn't work, copy and paste this URL into your browser:
+__HAULBOT_PORTAL_URL__
+
+Didn't request this? You can safely ignore this email sent to __HAULBOT_DRIVER_EMAIL__ — nobody can sign in without the link above.
+
+----------------------------------------
+
+Questions? Reach us at support@haulbot.online.
+
+Haulbot — AI dispatch for solo Amazon Relay owner-operators.

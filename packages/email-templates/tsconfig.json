@@ -3,7 +3,7 @@
   "compilerOptions": {
     "jsx": "react-jsx",
     "lib": ["ES2022", "DOM"],
-    "types": ["react"]
+    "types": ["react", "bun"]
   },
   "include": ["emails", "components", "theme.ts", "src"]
 }

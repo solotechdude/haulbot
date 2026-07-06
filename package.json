@@ -13,6 +13,7 @@
     "dev:backend": "bun run --filter @haulbot/backend dev",
     "dev:website": "bun run --filter @haulbot/website dev",
     "dev:email": "bun run --filter @haulbot/email-templates dev",
+    "export:email": "bun run --filter @haulbot/email-templates export:magic-link",
     "dev:bot": "bun run --filter @haulbot/bot dev",
     "dev:remotion": "bun run --filter @haulbot/remotion studio",
     "render:hero": "bun run --filter @haulbot/remotion render:hero",

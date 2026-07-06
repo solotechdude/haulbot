@@ -22,8 +22,11 @@ The preview server lists every template in `emails/`. Edit and see changes live.
 ## Export to HTML
 
 ```bash
-bun run export   # writes static HTML to ./out
+bun run export              # all templates → ./out (preview / reference)
+bun run export:magic-link   # magic-link.html + .txt with send placeholders (used by backend)
 ```
+
+The backend loads `out/magic-link.{html,txt}` at runtime and substitutes portal URL + recipient email — no React SSR in production. Re-run `export:magic-link` after editing `emails/magic-link.tsx`.
 
 ## Structure
 
@@ -36,15 +39,13 @@ components/          Shared building blocks reused by every email
   EmailButton.tsx    Brand CTA button
   EmailFooter.tsx    Signature, support contact, legal line
 emails/             One file per template (default export = the email)
-src/                Render helpers consumed by the backend
-  render-magic-link.ts   HTML + plain text for magic-link sends
-  welcome.tsx              Subscription confirmed; environment provisioning
-  environment-ready.tsx    Environment ready; sign in to finish setup
-  magic-link.tsx           Passwordless sign-in link to /solo
-  billing/
-    receipt.tsx              Payment received
-    payment-failed.tsx       Payment failed; update card
-    subscription-canceled.tsx Subscription canceled; resubscribe
+out/                Build-time exports (magic-link.{html,txt} for Resend sends)
+scripts/
+  export-magic-link.ts   Renders magic-link with placeholders for production
+src/
+  render-magic-link.ts   Dev / export-time React Email render
+  fill-magic-link.ts     Runtime placeholder fill (import @haulbot/email-templates/send)
+  placeholders.ts      Shared placeholder tokens
 ```
 
 ## Authoring a template

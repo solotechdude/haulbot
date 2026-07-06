@@ -1,5 +1,8 @@
 .site {
+  display: flex;
+  flex-direction: column;
   width: 100%;
+  min-height: 100dvh;
   overflow-x: clip;
 }
 
@@ -165,6 +168,7 @@
 }
 
 .site__main {
+  flex: 1 1 auto;
   width: 100%;
   max-width: 960px;
   margin: 0 auto;
@@ -176,9 +180,16 @@
   padding-block: var(--space-5);
 }
 
+.site__main--centered {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
 .site__footer {
+  flex-shrink: 0;
+  margin-top: auto;
   border-top: 1px solid var(--color-border);
-  margin-top: var(--space-6);
 }
 
 .site__footer-inner {

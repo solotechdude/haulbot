@@ -40,7 +40,7 @@ export function SignInPage() {
   }
 
   return (
-    <SiteLayout>
+    <SiteLayout mainClassName="site__main--centered">
       <div className="signin">
         <section className="signin__card">
           <p className="signin__eyebrow">

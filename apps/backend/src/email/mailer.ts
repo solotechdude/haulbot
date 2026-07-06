@@ -1,5 +1,5 @@
 import { Resend } from "resend";
-import { magicLinkHtml, magicLinkText } from "./magic-link-content";
+import { fillMagicLinkEmail } from "@haulbot/email-templates/send";
 
 const DEFAULT_FROM = "Haulbot <login@haulbot.online>";
 
@@ -12,8 +12,7 @@ export async function sendSignInEmail(to: string, url: string): Promise<void> {
     return;
   }
 
-  const html = magicLinkHtml(url, to);
-  const text = magicLinkText(url, to);
+  const { html, text } = fillMagicLinkEmail(url, to);
 
   const resend = new Resend(apiKey);
   const { data, error } = await resend.emails.send({

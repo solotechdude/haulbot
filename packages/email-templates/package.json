@@ -5,11 +5,13 @@
   "type": "module",
   "description": "Haulbot transactional email templates (React Email)",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./send": "./src/fill-magic-link.ts"
   },
   "scripts": {
     "dev": "email dev --port 3001",
     "export": "email export --outDir out",
+    "export:magic-link": "bun run scripts/export-magic-link.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

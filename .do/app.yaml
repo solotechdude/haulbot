@@ -167,7 +167,7 @@ services:
     git:
       repo_clone_url: https://github.com/solotechdude/haulbot.git
       branch: main
-    build_command: bun install
+    build_command: bun install && bun run --filter @haulbot/email-templates export:magic-link
     run_command: bun run --filter @haulbot/backend start:prod
     environment_slug: bun
     instance_size_slug: basic-xxs
