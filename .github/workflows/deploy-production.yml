@@ -23,4 +23,5 @@ jobs:
         run: doctl account get
 
       - name: Redeploy App Platform
-        run: doctl apps create-deployment ffa264d7-e897-4fe6-b0c5-67c605868398 --force-rebuild --wait
+        run: |
+          doctl apps create-deployment ffa264d7-e897-4fe6-b0c5-67c605868398 --force-rebuild --format ID,Phase,Cause
