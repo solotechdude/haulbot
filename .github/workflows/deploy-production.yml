@@ -3,6 +3,7 @@ name: Deploy production
 on:
   push:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -10,11 +11,16 @@ permissions:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    env:
+      DOCTL_ACCESS_TOKEN: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
     steps:
       - name: Install doctl
         uses: digitalocean/action-doctl@v2
         with:
           token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+
+      - name: Verify DigitalOcean auth
+        run: doctl account get
 
       - name: Redeploy App Platform
         run: doctl apps create-deployment ffa264d7-e897-4fe6-b0c5-67c605868398 --force-rebuild --wait
