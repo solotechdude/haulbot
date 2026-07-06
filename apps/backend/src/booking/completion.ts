@@ -17,6 +17,22 @@ export async function recordBookingCompletion(input: BookingCompletionInput): Pr
   const db = await getDb();
   const now = new Date().toISOString();
 
+  if (!input.driverAssigned) {
+    await db.collection("booking_completions").insertOne({
+      userId: input.userId,
+      loadId: input.loadId,
+      origin: resolveMarketCity(input.origin),
+      destination: resolveMarketCity(input.destination),
+      payout: input.payout,
+      ratePerMile: input.ratePerMile,
+      driverAssigned: false,
+      source: "extension",
+      createdAt: now,
+    });
+    console.log("[booking] skipped handoff — driver not assigned", input.loadId);
+    return;
+  }
+
   const existing = await getDispatchState(input.userId);
   const priorLeg = existing?.activeLeg ?? null;
 
