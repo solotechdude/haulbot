@@ -32,6 +32,7 @@ export async function createSoloCheckoutSession(
 
   const session = await stripe.checkout.sessions.create({
     mode: "subscription",
+    payment_method_types: ["card"],
     customer_email: user.email,
     client_reference_id: user.id,
     metadata: { userId: user.id, ...termsMetadata },
