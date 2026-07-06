@@ -115,3 +115,9 @@ export type {
 } from "./telemetry";
 export type { MarketingChatMessage } from "./marketing/hero-chat";
 export { heroChat, heroScanningLine } from "./marketing/hero-chat";
+export {
+  LEGAL_ENTITY,
+  SUBSCRIPTION_PRICE_USD,
+  TERMS_VERSION,
+  formatLegalAddress,
+} from "./legal";

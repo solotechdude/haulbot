@@ -1,4 +1,5 @@
 import type Stripe from "stripe";
+import { trackGa4Purchase } from "../analytics/ga4-mp";
 import { getDb } from "../db";
 import { deprovisionEnvironment, provisionDedicatedEnvironment } from "../provisioning";
 
@@ -110,5 +111,6 @@ export async function upsertSubscriptionFromCheckout(session: Stripe.Checkout.Se
       { upsert: true },
     );
     await provisionDedicatedEnvironment(userId);
+    await trackGa4Purchase({ userId, transactionId: session.id });
   }
 }

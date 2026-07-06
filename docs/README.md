@@ -14,6 +14,7 @@ Planning docs for the AI dispatch product. Domain language lives in [`CONTEXT.md
 | [conventions.md](./conventions.md) | Coding standards, UI rules, Fallow audits, Cursor rules |
 | [architecture-first-development.md](./architecture-first-development.md) | **AFDP** — pre/post implementation protocol for all code changes |
 | [campaign-bot-flow.md](./campaign-bot-flow.md) | **Campaign mode** — `/campaign` command, wizard, defaults, schema mapping |
+| [analytics.md](./analytics.md) | GA4 conversion funnel, UTMs, env vars, Admin checklist |
 
 ## Product in one sentence
 

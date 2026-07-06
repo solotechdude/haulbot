@@ -8,6 +8,8 @@ import { MarketingPage } from "./pages/MarketingPage";
 import { SoloPortalPage } from "./pages/SoloPortalPage";
 import { SignInPage } from "./pages/SignInPage";
 import { AdminPage } from "./pages/AdminPage";
+import { PrivacyPage } from "./pages/PrivacyPage";
+import { TermsPage } from "./pages/TermsPage";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
@@ -18,6 +20,8 @@ createRoot(document.getElementById("root")!).render(
         <Route path="/solo" element={<SoloPortalPage />} />
         <Route path="/sign-in" element={<SignInPage />} />
         <Route path="/admin" element={<AdminPage />} />
+        <Route path="/terms" element={<TermsPage />} />
+        <Route path="/privacy" element={<PrivacyPage />} />
       </Routes>
     </BrowserRouter>
   </StrictMode>,

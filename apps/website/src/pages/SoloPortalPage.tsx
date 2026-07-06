@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import type { DriverProfile, OnboardingStep } from "@haulbot/shared";
+import { SUBSCRIPTION_PRICE_USD, type DriverProfile, type OnboardingStep } from "@haulbot/shared";
+import { trackOnce } from "../analytics/gtag";
 import { SiteLayout } from "../components/SiteLayout";
 import { TelegramConnectPanel } from "../components/TelegramConnectPanel";
 import { Button } from "../components/ui/Button";
@@ -282,6 +283,7 @@ export function SoloPortalPage() {
   const params = new URLSearchParams(window.location.search);
   const checkoutSuccess = params.get("checkout") === "success";
   const tokenExchanged = useRef(false);
+  const lastTrackedStep = useRef<string | null>(null);
 
   const loadProfile = useCallback(async (id: string) => {
     const res = await fetch("/api/onboarding/status", {
@@ -308,6 +310,12 @@ export function SoloPortalPage() {
   }, []);
 
   useEffect(() => {
+    if (!checkoutSuccess) return;
+    trackOnce("purchase", "purchase", { value: SUBSCRIPTION_PRICE_USD, currency: "USD" });
+    trackOnce("sign_up", "sign_up", { method: "stripe_checkout" });
+  }, [checkoutSuccess]);
+
+  useEffect(() => {
     if (!userId) return;
 
     let active = true;
@@ -316,6 +324,21 @@ export function SoloPortalPage() {
         .then((p) => {
           if (!active) return;
           setProfile(p);
+
+          const currentStep = p.onboardingStep;
+          const lastStep = lastTrackedStep.current;
+          const currentIndex = STEP_ORDER.indexOf(currentStep);
+          const lastIndex = lastStep ? STEP_ORDER.indexOf(lastStep as OnboardingStep) : -1;
+          if (currentIndex > lastIndex) {
+            if (currentStep === "telegram_linked" || currentStep === "relay_ready") {
+              trackOnce(`onboarding_${currentStep}`, "onboarding_step", { step: currentStep });
+              lastTrackedStep.current = currentStep;
+            } else if (currentStep === "active") {
+              trackOnce("onboarding_complete", "onboarding_complete");
+              lastTrackedStep.current = currentStep;
+            }
+          }
+
           if (p.onboardingStep === "active") {
             fetch("/api/onboarding/agent-status", { headers: authHeaders(userId) })
               .then((res) =>

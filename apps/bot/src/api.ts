@@ -202,13 +202,15 @@ export async function setGoal(
   return postDispatch("/v1/bot/dispatch/goal", { userId, text, origin }, "goal");
 }
 
-export async function completeCommitment(userId: string, loadId?: string): Promise<string> {
-  const data = await post<{ clearedLoadId: string }>(
+export async function completeCommitment(
+  userId: string,
+  loadId?: string,
+): Promise<{ clearedLoadId: string; promotedQueued: boolean; offerRehunt: boolean }> {
+  return post(
     "/v1/bot/dispatch/complete",
     { userId, loadId },
     "complete",
   );
-  return data.clearedLoadId;
 }
 
 export async function setCampaignStatusPin(

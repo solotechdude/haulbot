@@ -36,14 +36,8 @@ registerKeyboardHandlers(bot);
 
 bot.catch((err) => {
   const grammyErr = err.error as { error_code?: number; description?: string } | undefined;
-  const code = grammyErr?.error_code;
   const message = grammyErr?.description ?? err.message ?? String(err);
-  console.error("[bot] error:", message);
-
-  if (code === 409 || message.includes("getUpdates")) {
-    console.error("[bot] Another bot instance is polling Telegram. Run: bun run bot:stop");
-    process.exit(1);
-  }
+  console.error("[bot] handler error:", message);
 });
 
 const webhookUrl = process.env.TELEGRAM_WEBHOOK_URL;
@@ -92,7 +86,28 @@ if (webhookUrl) {
   process.once("SIGINT", () => void shutdown("SIGINT"));
   process.once("SIGTERM", () => void shutdown("SIGTERM"));
 
-  await bot.api.deleteWebhook({ drop_pending_updates: false });
-  console.log("[bot] starting long polling (pid %d)…", process.pid);
-  await bot.start();
+  const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+  while (!stopping) {
+    try {
+      await bot.api.deleteWebhook({ drop_pending_updates: false });
+      console.log("[bot] starting long polling (pid %d)…", process.pid);
+      await bot.start();
+      break;
+    } catch (err) {
+      if (stopping) break;
+      const grammyErr = err as { error_code?: number; description?: string };
+      const code = grammyErr?.error_code;
+      const message = grammyErr?.description ?? (err as Error).message ?? String(err);
+      if (code === 409 || message.includes("setWebhook") || message.includes("getUpdates")) {
+        console.warn(
+          "[bot] polling conflict — another webhook/poller touched this token; clearing webhook and retrying in 3s…",
+        );
+        await bot.api.deleteWebhook({ drop_pending_updates: false }).catch(() => {});
+        await sleep(3000);
+        continue;
+      }
+      throw err;
+    }
+  }
 }

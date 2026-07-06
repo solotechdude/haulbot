@@ -1,5 +1,10 @@
 import { InlineKeyboard, Keyboard, type Bot, type Context } from "grammy";
-import { buildReplyKeyboardCells, resolveReplyKeyboardState, START_SEARCH_LABEL } from "@haulbot/shared";
+import {
+  buildReplyKeyboardCells,
+  COMPLETE_TRIP_LABEL,
+  resolveReplyKeyboardState,
+  START_SEARCH_LABEL,
+} from "@haulbot/shared";
 import * as api from "../api";
 import { resolveLocationToMarketCity } from "../geocode";
 import { startSearchMiniAppUrl } from "../mini-app-url";
@@ -39,15 +44,37 @@ export async function replyKeyboardForUser(userId: string): Promise<Keyboard> {
   return replyKeyboardFor(resolveReplyKeyboardState(dispatch));
 }
 
-async function tryDeleteUserMessage(ctx: Context): Promise<void> {
+function completeToast(
+  result: { clearedLoadId: string; promotedQueued: boolean },
+  dispatch: api.DispatchStatus["dispatch"],
+): string {
+  if (result.promotedQueued && dispatch.commitment) {
+    return `${result.clearedLoadId} done — ${dispatch.commitment.loadId} is now current`;
+  }
+  return `Trip ${result.clearedLoadId} complete`;
+}
+
+async function tryDeleteUserMessage(ctx: {
+  chat?: { id: number };
+  message?: { message_id: number };
+  api: { deleteMessage: (chatId: number, messageId: number) => Promise<unknown> };
+}): Promise<void> {
   const chatId = ctx.chat?.id;
-  if (!chatId) return;
+  if (!chatId || !ctx.message) return;
   try {
-    await ctx.api.deleteMessage(chatId, ctx.message!.message_id);
+    await ctx.api.deleteMessage(chatId, ctx.message.message_id);
   } catch {
     // ignore
   }
 }
+
+const KEYBOARD_LABELS = new Set([
+  COMPLETE_TRIP_LABEL,
+  START_SEARCH_LABEL,
+  "Status",
+  "Pause",
+  "Resume",
+]);
 
 export function registerHuntHandlers(bot: Bot): void {
   bot.callbackQuery(/^hunt:/, async (ctx) => {
@@ -207,7 +234,10 @@ export function registerKeyboardHandlers(bot: Bot): void {
     if (!userId) return;
 
     const session = getSession(ctx.chat!.id);
-    if (session.step) return;
+    if (session.step) {
+      await ctx.reply("Finish the step above first.");
+      return;
+    }
 
     let payload: { lat?: number; lon?: number; error?: string };
     try {
@@ -240,9 +270,16 @@ export function registerKeyboardHandlers(bot: Bot): void {
     if (!userId) return await next();
 
     const session = getSession(ctx.chat!.id);
-    if (session.step) return await next();
+    if (session.step) {
+      if (KEYBOARD_LABELS.has(text)) {
+        await ctx.reply("Finish the step above first.");
+        await tryDeleteUserMessage(ctx);
+        return;
+      }
+      return await next();
+    }
 
-    if (text === "Complete trip") {
+    if (text === COMPLETE_TRIP_LABEL) {
       const { dispatch } = await api.getDispatchStatus(userId);
       if (!dispatch.commitment) {
         void api.syncDispatchUi(userId);
@@ -265,8 +302,10 @@ export function registerKeyboardHandlers(bot: Bot): void {
     }
 
     if (text === "Status") {
-      void api.syncDispatchUi(userId);
+      await api.syncDispatchUi(userId);
+      const status = await api.getDispatchStatus(userId);
       await tryDeleteUserMessage(ctx);
+      await ctx.reply(formatShortStatus(status));
       return;
     }
 
@@ -294,15 +333,54 @@ export function registerKeyboardHandlers(bot: Bot): void {
     if (ctx.callbackQuery.data === "complete:no") {
       await api.clearDashboardPrompts(linked.userId);
       await ctx.answerCallbackQuery({ text: "OK" });
+      void api.syncDispatchUi(linked.userId);
+      return;
+    }
+
+    if (ctx.callbackQuery.data === "complete:prompt") {
+      try {
+        const { dispatch } = await api.getDispatchStatus(linked.userId);
+        if (!dispatch.commitment) {
+          await ctx.answerCallbackQuery({ text: "No active trip" });
+          return;
+        }
+        await api.promptCompleteConfirm(linked.userId);
+        await ctx.answerCallbackQuery();
+      } catch {
+        await ctx.answerCallbackQuery({ text: "Could not prompt" });
+      }
       return;
     }
 
     try {
-      await api.completeCommitment(linked.userId);
-      await ctx.answerCallbackQuery({ text: "Trip complete" });
+      const result = await api.completeCommitment(linked.userId);
+      const { dispatch } = await api.getDispatchStatus(linked.userId);
+      await ctx.answerCallbackQuery({ text: completeToast(result, dispatch) });
       void api.syncDispatchUi(linked.userId);
     } catch {
       await ctx.answerCallbackQuery({ text: "Could not complete trip" });
+    }
+  });
+
+  bot.callbackQuery(/^dispatch:/, async (ctx) => {
+    const linked = await requireLinkedCallbackUser(ctx);
+    if (!linked) return;
+
+    const action = ctx.callbackQuery.data.replace("dispatch:", "");
+    try {
+      if (action === "pause") {
+        await api.setPaused(linked.userId, true);
+        await ctx.answerCallbackQuery({ text: "Paused" });
+      } else if (action === "resume") {
+        await api.setPaused(linked.userId, false);
+        await ctx.answerCallbackQuery({ text: "Resumed" });
+      } else {
+        await ctx.answerCallbackQuery({ text: "Unknown action" });
+        return;
+      }
+      void api.syncDispatchUi(linked.userId);
+    } catch {
+      await ctx.answerCallbackQuery({ text: "Could not update pause state" });
     }
   });
 

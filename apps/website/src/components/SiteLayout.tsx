@@ -179,6 +179,15 @@ export function SiteLayout({ children, mainClassName }: SiteLayoutProps) {
         </div>
       </header>
       <main className={mainClassName ? `site__main ${mainClassName}` : "site__main"}>{children}</main>
+      <footer className="site__footer">
+        <div className="site__footer-inner">
+          <nav className="site__footer-nav" aria-label="Legal">
+            <Link to="/terms">Terms</Link>
+            <Link to="/privacy">Privacy</Link>
+          </nav>
+          <p className="site__footer-copy">&copy; {new Date().getFullYear()} Haulbot LLC</p>
+        </div>
+      </footer>
     </div>
   );
 }

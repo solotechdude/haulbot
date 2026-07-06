@@ -124,7 +124,7 @@ export function formatDispatchDashboardMessage(input: DispatchDashboardInput): s
     lines.push(`${formatRouteLabel(q.origin, q.destination)} · ${q.loadId}`);
     const pickup = formatPickupShort(q.pickupAt);
     if (pickup) lines.push(`Pickup ${pickup}`);
-    lines.push("Complete current trip when ready.");
+    lines.push("2 trips active — complete current trip to activate the next load.");
     return lines.join("\n");
   }
 
@@ -177,10 +177,14 @@ export function formatDispatchDashboardMessage(input: DispatchDashboardInput): s
 
 export type InlineButton = { text: string; callback_data: string };
 
-/** Inline keyboard for active hunt (time edits only — v1). */
-export function buildHuntInlineKeyboard(phase: HuntPhase): InlineButton[][] {
+/** Inline keyboard for active hunt (time edits + pause/resume). */
+export function buildHuntInlineKeyboard(phase: HuntPhase, paused = false): InlineButton[][] {
   if (phase !== "searching") return [];
+  const pauseRow: InlineButton[] = paused
+    ? [{ text: "Resume", callback_data: "dispatch:resume" }]
+    : [{ text: "Pause", callback_data: "dispatch:pause" }];
   return [
+    pauseRow,
     [
       { text: "+1 hour late", callback_data: "hunt:late:+1h" },
       { text: "+2 hours late", callback_data: "hunt:late:+2h" },
@@ -192,15 +196,25 @@ export function buildHuntInlineKeyboard(phase: HuntPhase): InlineButton[][] {
 
 export function buildHandoffInlineKeyboard(): InlineButton[][] {
   return [
+    [{ text: "Start searching (+3h)", callback_data: "handoff:+3h" }],
     [
       { text: "+1 hour", callback_data: "handoff:+1h" },
-      { text: "+3 hours", callback_data: "handoff:+3h" },
+      { text: "Other time…", callback_data: "handoff:custom" },
     ],
     [{ text: "Tomorrow 8am", callback_data: "handoff:tomorrow8" }],
-    [{ text: "Custom time…", callback_data: "handoff:custom" }],
     [{ text: "Edit search…", callback_data: "handoff:wizard" }],
     [{ text: "Cancel next leg", callback_data: "handoff:skip" }],
   ];
+}
+
+function completeTripRow(): InlineButton[][] {
+  return [[{ text: COMPLETE_TRIP_LABEL, callback_data: "complete:prompt" }]];
+}
+
+function withCompleteTrip(input: DispatchDashboardInput, rows: InlineButton[][]): InlineButton[][] {
+  if (!input.commitment || input.uiConfirmComplete) return rows;
+  if (rows.length === 0) return completeTripRow();
+  return [...completeTripRow(), ...rows];
 }
 
 /** All inline actions for the pinned dashboard — replaces separate chat messages. */
@@ -230,9 +244,9 @@ export function buildDashboardInlineKeyboard(input: DispatchDashboardInput): Inl
     ];
   }
   if (input.handoff && !input.activeLeg && !input.queuedCommitment) {
-    return buildHandoffInlineKeyboard();
+    return withCompleteTrip(input, buildHandoffInlineKeyboard());
   }
-  return buildHuntInlineKeyboard(resolveHuntPhase(input));
+  return withCompleteTrip(input, buildHuntInlineKeyboard(resolveHuntPhase(input), input.paused));
 }
 
 export type ReplyKeyboardRow = string[];

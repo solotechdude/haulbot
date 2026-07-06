@@ -16,6 +16,20 @@ import {
   unpinChatMessage,
 } from "./notify";
 
+/** Tracks last pinned dashboard text per user — detects handoff/book phase changes heartbeats skip. */
+const lastPinText = new Map<string, string>();
+
+function rememberPinText(userId: string, text: string): void {
+  lastPinText.set(userId, text);
+}
+
+function pinTextChanged(userId: string, text: string): boolean {
+  const prev = lastPinText.get(userId);
+  if (prev === text) return false;
+  rememberPinText(userId, text);
+  return true;
+}
+
 function dashboardInput(state: DispatchState, handoff: DispatchDashboardInput["handoff"]): DispatchDashboardInput {
   const canceled = state.canceledHunt;
   return {
@@ -84,7 +98,9 @@ export async function syncDispatchDashboard(
       : "";
     const next = state.agentStatus;
     const nextKey = next ? `${next.relayWorkState}:${next.lastScanSummary?.at ?? ""}` : "";
-    if (prevKey !== nextKey || prevAgentStatus?.armed !== next?.armed || !prevAgentStatus) {
+    const agentChanged =
+      prevKey !== nextKey || prevAgentStatus?.armed !== next?.armed || !prevAgentStatus;
+    if (agentChanged || pinTextChanged(userId, text)) {
       await editTelegramMessage(String(pin.telegramChatId), pin.messageId, text, buttons);
     }
     await pinChatMessage(String(pin.telegramChatId), pin.messageId);
@@ -117,6 +133,8 @@ export async function ensureDispatchDashboardPin(userId: string): Promise<void> 
     return;
   }
   const buttons = buildDashboardInlineKeyboard(input);
+
+  rememberPinText(userId, text);
 
   if (state.campaignStatusPin?.messageId) {
     await editTelegramMessage(

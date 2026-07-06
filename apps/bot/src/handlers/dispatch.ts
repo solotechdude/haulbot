@@ -6,7 +6,7 @@ import { requireLinkedCallbackUser, requireLinkedUser } from "../linked-user";
 import { getSession } from "../session";
 import { replyKeyboardFor, replyKeyboardForUser } from "./keyboard";
 import { startCampaignWizard } from "./campaign-wizard";
-import { replyWithFreshFullStatus } from "./status-view";
+import { formatShortStatus } from "./status-view";
 
 export function registerDispatchHandlers(bot: Bot): void {
   bot.command("help", async (ctx) => {
@@ -30,13 +30,14 @@ export function registerDispatchHandlers(bot: Bot): void {
 
     const loadId = ctx.match?.trim() || undefined;
     try {
-      const clearedLoadId = await api.completeCommitment(userId, loadId || undefined);
+      const result = await api.completeCommitment(userId, loadId || undefined);
       void api.syncDispatchUi(userId);
       const { dispatch } = await api.getDispatchStatus(userId);
       const kb = replyKeyboardFor(resolveReplyKeyboardState(dispatch));
-      const text = dispatch.commitment
-        ? `Trip ${clearedLoadId} complete. ${dispatch.commitment.loadId} is now your current trip.`
-        : `Trip ${clearedLoadId} complete.`;
+      const text =
+        result.promotedQueued && dispatch.commitment
+          ? `${result.clearedLoadId} done — ${dispatch.commitment.loadId} is now current`
+          : `Trip ${result.clearedLoadId} complete.`;
       await ctx.reply(text, { reply_markup: kb });
     } catch {
       await ctx.reply("No active trip to complete.");
@@ -196,7 +197,10 @@ export function registerDispatchHandlers(bot: Bot): void {
       return;
     }
 
-    await replyWithFreshFullStatus(userId, (t) => ctx.reply(t));
+    await api.syncDispatchUi(userId);
+    const status = await api.getDispatchStatus(userId);
+    const kb = replyKeyboardFor(resolveReplyKeyboardState(status.dispatch));
+    await ctx.reply(formatShortStatus(status), { reply_markup: kb });
   });
 
   bot.command("pause", async (ctx) => {

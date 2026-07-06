@@ -1,16 +1,21 @@
 import { useState } from "react";
-import { heroChat, type MarketingChatMessage } from "@haulbot/shared";
+import { heroChat, type MarketingChatMessage, SUBSCRIPTION_PRICE_USD, TERMS_VERSION } from "@haulbot/shared";
+import { Link } from "react-router-dom";
+import { trackEvent } from "../analytics/gtag";
 import { SiteLayout } from "../components/SiteLayout";
 import { HeroDemoVideo } from "../components/HeroDemoVideo";
 import { Button } from "../components/ui/Button";
 import "../components/ui/Button.css";
 import "./MarketingPage.css";
 
-async function startCheckout(email: string): Promise<string> {
+async function startCheckout(
+  email: string,
+  termsVersion: string,
+): Promise<string> {
   const res = await fetch("/api/billing/checkout-session", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email }),
+    body: JSON.stringify({ email, termsAccepted: true, termsVersion }),
   });
   const data = (await res.json()) as { url?: string; error?: string };
   if (!res.ok || !data.url) {
@@ -189,6 +194,7 @@ function scrollToId(id: string) {
 
 export function MarketingPage() {
   const [email, setEmail] = useState("");
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -199,7 +205,8 @@ export function MarketingPage() {
     setError(null);
     setLoading(true);
     try {
-      const url = await startCheckout(email);
+      const url = await startCheckout(email, TERMS_VERSION);
+      trackEvent("begin_checkout", { value: SUBSCRIPTION_PRICE_USD, currency: "USD" });
       window.location.href = url;
     } catch (err) {
       setError((err as Error).message);
@@ -226,7 +233,13 @@ export function MarketingPage() {
               match your rules, and keeps your next leg queued — while you stay on the road.
             </p>
             <div className="hero__actions">
-              <Button variant="primary" onClick={() => scrollToId("pricing")}>
+              <Button
+                variant="primary"
+                onClick={() => {
+                  trackEvent("select_promotion", { promotion_name: "hero_get_started" });
+                  scrollToId("pricing");
+                }}
+              >
                 Get started — $199/mo
               </Button>
               <button
@@ -359,9 +372,32 @@ export function MarketingPage() {
                 disabled={loading}
               />
               {error ? <p className="pricing__error">{error}</p> : null}
+              <label className="pricing__terms">
+                <input
+                  type="checkbox"
+                  className="pricing__terms-input"
+                  checked={termsAccepted}
+                  onChange={(e) => setTermsAccepted(e.target.checked)}
+                  disabled={loading}
+                />
+                <span className="pricing__terms-text">
+                  I agree to the{" "}
+                  <Link to="/terms" target="_blank" rel="noopener noreferrer">
+                    Terms of Service
+                  </Link>{" "}
+                  and{" "}
+                  <Link to="/privacy" target="_blank" rel="noopener noreferrer">
+                    Privacy Policy
+                  </Link>
+                </span>
+              </label>
+              <p className="pricing__billing-note">
+                Subscription renews automatically each month at ${SUBSCRIPTION_PRICE_USD} until you
+                cancel. All sales are final. No refunds.
+              </p>
               <Button
                 variant="primary"
-                disabled={loading || !email.includes("@")}
+                disabled={loading || !email.includes("@") || !termsAccepted}
                 onClick={handleSubscribe}
               >
                 {loading ? "Redirecting…" : "Subscribe — $199/mo"}
@@ -373,11 +409,6 @@ export function MarketingPage() {
             </p>
           </div>
         </section>
-
-        <footer className="marketing__footer">
-          <p>Haulbot — AI dispatch for Amazon Relay owner-operators.</p>
-          <p className="marketing__fineprint">Not affiliated with or endorsed by Amazon.</p>
-        </footer>
       </div>
     </SiteLayout>
   );

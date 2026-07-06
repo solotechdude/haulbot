@@ -61,6 +61,9 @@ export async function openHandoffOnBook(
   plan.updatedAt = now;
   await upsertDispatchPlan(plan);
 
+  const { ensureDispatchDashboardPin } = await import("../telegram/dashboard-sync");
+  await ensureDispatchDashboardPin(userId);
+
   return handoff;
 }
 

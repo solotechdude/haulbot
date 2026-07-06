@@ -2,9 +2,9 @@
 #
 # Deploy:
 #   1. Copy .do/env.production.local.yaml.example → .do/env.production.local.yaml
-#   2. Fill secrets in env.production.local.yaml (gitignored)
-#   3. doctl apps create --spec .do/app.yaml
-#      — or update an existing app: doctl apps update <app-id> --spec .do/app.yaml
+#   2. Fill every secret in env.production.local.yaml (gitignored)
+#   3. python3 scripts/build-do-deploy-spec.py   → .do/app.deploy.yaml
+#   4. doctl apps update <app-id> --spec .do/app.deploy.yaml --wait
 #
 # DNS (Porkbun / DO):
 #   haulbot.online      → App default ingress (website + /api BFF)
@@ -52,7 +52,7 @@ envs:
     value: agent_haulbot
     scope: RUN_AND_BUILD_TIME
   - key: TELEGRAM_WEBHOOK_URL
-    value: https://haulbot-6w83u.ondigitalocean.app/telegram/webhook
+    value: https://api.haulbot.online/telegram/webhook
     scope: RUN_TIME
   - key: TELEGRAM_MINI_APP_URL
     value: https://haulbot.online/telegram/location.html
@@ -88,12 +88,10 @@ envs:
     value: "false"
     scope: RUN_TIME
 
-  # --- Database (injected from attached cluster; override in local secrets file if needed) ---
+  # --- Secrets (values in .do/env.production.local.yaml → build-do-deploy-spec.py) ---
   - key: MONGODB_URI
-    value: ${mongodb.MONGODB_URI}
     scope: RUN_TIME
-
-  # --- Secrets (set values in .do/env.production.local.yaml or DO dashboard) ---
+    type: SECRET
   - key: SESSION_SECRET
     scope: RUN_TIME
     type: SECRET
@@ -134,6 +132,12 @@ envs:
     scope: RUN_TIME
     type: SECRET
   - key: ANALYTICS_ENGINE_TOKEN
+    scope: RUN_TIME
+    type: SECRET
+  - key: GA4_MEASUREMENT_ID
+    scope: RUN_TIME
+    type: SECRET
+  - key: GA4_API_SECRET
     scope: RUN_TIME
     type: SECRET
   - key: BRIEFING_ENABLED
@@ -213,10 +217,10 @@ ingress:
     # Browser BFF on marketing domain + default DO URL
     - match:
         path:
-          prefix: /api
+          prefix: /api/
       component:
         name: backend
-        rewrite: /v1
+        rewrite: /v1/
 
     # Extension + bot API on api.haulbot.online
     - match:

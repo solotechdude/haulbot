@@ -1,6 +1,8 @@
 .marketing {
   display: flex;
   flex-direction: column;
+  width: 100%;
+  min-width: 0;
 }
 
 .marketing > section {
@@ -26,6 +28,12 @@
   grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
   gap: var(--space-6);
   align-items: center;
+  overflow: hidden;
+}
+
+.hero__copy,
+.hero__demo {
+  min-width: 0;
 }
 
 .hero::before {
@@ -521,6 +529,11 @@
   justify-self: end;
 }
 
+.capability__copy,
+.capability__demo {
+  min-width: 0;
+}
+
 .capability__title {
   font-size: 1.375rem;
   letter-spacing: -0.01em;
@@ -685,6 +698,37 @@
   margin: 0;
 }
 
+.pricing__terms {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.625rem;
+  cursor: pointer;
+}
+
+.pricing__terms-input {
+  margin-top: 0.2rem;
+  flex-shrink: 0;
+  accent-color: var(--color-accent);
+}
+
+.pricing__terms-text {
+  font-size: 0.875rem;
+  color: var(--color-muted);
+  line-height: 1.5;
+}
+
+.pricing__terms-text a {
+  color: var(--color-accent);
+  font-weight: 500;
+}
+
+.pricing__billing-note {
+  font-size: 0.8125rem;
+  color: var(--color-subtle);
+  line-height: 1.5;
+  margin: 0;
+}
+
 .pricing__notice {
   color: var(--color-muted);
   margin: 0 0 var(--space-3);
@@ -719,6 +763,10 @@
 /* ---------- Responsive ---------- */
 
 @media (max-width: 860px) {
+  .hero::before {
+    display: none;
+  }
+
   .hero {
     grid-template-columns: 1fr;
   }

@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { TERMS_VERSION } from "@haulbot/shared";
 import { getDb } from "../db";
 import { requireDriverSession } from "../middleware/auth";
 import { createSoloCheckoutSession } from "../stripe/checkout";
@@ -6,21 +7,43 @@ import { getStripe } from "../stripe/client";
 
 export const billingRoutes = new Hono();
 
+function clientIp(c: { req: { header: (name: string) => string | undefined } }): string | undefined {
+  const forwarded = c.req.header("x-forwarded-for");
+  if (forwarded) return forwarded.split(",")[0]?.trim();
+  return c.req.header("x-real-ip") ?? c.req.header("cf-connecting-ip");
+}
+
 billingRoutes.post("/checkout-session", async (c) => {
-  const body = await c.req.json<{ email?: string }>().catch(() => ({ email: undefined }));
+  const body = await c.req
+    .json<{ email?: string; termsAccepted?: boolean; termsVersion?: string }>()
+    .catch(() => ({ email: undefined, termsAccepted: undefined, termsVersion: undefined }));
   const email = body.email?.trim();
 
   if (!email || !email.includes("@")) {
     return c.json({ error: "INVALID_EMAIL" }, 400);
   }
 
+  if (!body.termsAccepted || body.termsVersion !== TERMS_VERSION) {
+    return c.json({ error: "TERMS_NOT_ACCEPTED" }, 400);
+  }
+
+  const acceptedAt = new Date().toISOString();
+  const acceptedIp = clientIp(c);
+
   try {
-    const result = await createSoloCheckoutSession(email);
+    const result = await createSoloCheckoutSession(email, {
+      version: TERMS_VERSION,
+      acceptedAt,
+      acceptedIp,
+    });
     return c.json(result);
   } catch (err) {
     const message = (err as Error).message;
     if (message === "STRIPE_NOT_CONFIGURED" || message === "STRIPE_PRICE_ID_NOT_CONFIGURED") {
       return c.json({ error: message }, 503);
+    }
+    if (message === "TERMS_VERSION_MISMATCH") {
+      return c.json({ error: "TERMS_NOT_ACCEPTED" }, 400);
     }
     console.error("[billing] checkout-session failed:", message);
     return c.json({ error: "CHECKOUT_FAILED" }, 500);
