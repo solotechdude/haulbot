@@ -15,6 +15,7 @@ Planning docs for the AI dispatch product. Domain language lives in [`CONTEXT.md
 | [architecture-first-development.md](./architecture-first-development.md) | **AFDP** — pre/post implementation protocol for all code changes |
 | [campaign-bot-flow.md](./campaign-bot-flow.md) | **Campaign mode** — `/campaign` command, wizard, defaults, schema mapping |
 | [analytics.md](./analytics.md) | GA4 conversion funnel, UTMs, env vars, Admin checklist |
+| [plans/environment-provision.md](./plans/environment-provision.md) | **Dedicated Environment** — AWS WSW provision bullet program (Gate 1) |
 
 ## Product in one sentence
 
