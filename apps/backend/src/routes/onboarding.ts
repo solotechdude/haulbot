@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { issueTelegramLinkToken } from "../auth/magic-link";
 import { getDb, getDispatchState } from "../db";
 import { requireDriverSession } from "../middleware/auth";
-import { ensureProvisionedIfSubscribed } from "../provisioning";
+import { ensureProvisionedIfSubscribed, provisionDedicatedEnvironment } from "../provisioning";
 import { buildPortalAgentStatus, mapBookingHistory } from "../portal/agent-status";
 import { telegramDeepLinkUrl } from "../telegram/link";
 import { getDriverProfile } from "../onboarding";
@@ -18,6 +18,25 @@ onboardingRoutes.get("/status", async (c) => {
   const profile = await getDriverProfile(userId);
   if (!profile) return c.json({ error: "NOT_FOUND" }, 404);
 
+  return c.json(profile);
+});
+
+onboardingRoutes.post("/retry-provision", async (c) => {
+  const userId = c.get("userId");
+  const db = await getDb();
+  const subscription = await db.collection("subscriptions").findOne({ userId, status: "active" });
+  if (!subscription) {
+    return c.json({ error: "NO_SUBSCRIPTION" }, 400);
+  }
+
+  try {
+    await provisionDedicatedEnvironment(userId);
+  } catch {
+    /* profile below reflects failed state */
+  }
+
+  const profile = await getDriverProfile(userId);
+  if (!profile) return c.json({ error: "NOT_FOUND" }, 404);
   return c.json(profile);
 });
 

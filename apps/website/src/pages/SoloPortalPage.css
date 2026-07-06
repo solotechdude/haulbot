@@ -10,6 +10,14 @@
   margin-bottom: var(--space-3);
 }
 
+.portal__onboarding-phase {
+  margin: 0 0 var(--space-2);
+  font-weight: 600;
+  font-size: 0.9375rem;
+  line-height: 1.35;
+  color: var(--color-text);
+}
+
 .portal__onboarding-meta {
   margin: 0;
   color: var(--color-muted);
@@ -147,11 +155,110 @@
   border: 1px solid var(--color-accent-tint-border);
 }
 
+.portal__stepper-panel--error {
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+
 .portal__stepper-hint {
   margin: 0 0 var(--space-3);
   color: var(--color-muted);
   font-size: 0.875rem;
   line-height: 1.45;
+}
+
+.portal__stepper-hint:last-child {
+  margin-bottom: 0;
+}
+
+.portal__stepper-hint--muted {
+  margin-bottom: 0;
+  font-size: 0.8125rem;
+}
+
+.portal__stepper-hint--error {
+  color: #991b1b;
+}
+
+.portal__stepper-hint--error a {
+  color: inherit;
+}
+
+.portal__stepper-actions--account {
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+}
+
+.portal__account-substeps {
+  list-style: none;
+  margin: 0 0 var(--space-3);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.portal__account-substep {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 0.875rem;
+  line-height: 1.35;
+  color: var(--color-muted);
+}
+
+.portal__account-substep--done {
+  color: var(--color-text);
+}
+
+.portal__account-substep--active {
+  color: var(--color-text);
+  font-weight: 500;
+}
+
+.portal__account-substep--failed {
+  color: #991b1b;
+  font-weight: 500;
+}
+
+.portal__account-substep-marker {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 1.25rem;
+  height: 1.25rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.portal__account-substep-marker svg {
+  width: 0.875rem;
+  height: 0.875rem;
+  color: var(--color-accent);
+}
+
+.portal__account-substep--failed .portal__account-substep-marker {
+  border-radius: 50%;
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.portal__account-spinner {
+  display: block;
+  width: 0.875rem;
+  height: 0.875rem;
+  border: 2px solid var(--color-border);
+  border-top-color: var(--color-accent);
+  border-radius: 50%;
+  animation: portal-spin 0.8s linear infinite;
+}
+
+@keyframes portal-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .portal__stepper-actions {

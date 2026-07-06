@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { SUBSCRIPTION_PRICE_USD, type DriverProfile, type OnboardingStep } from "@haulbot/shared";
+import { SUBSCRIPTION_PRICE_USD, LEGAL_ENTITY, type AccountSetupPhase, type DriverProfile, type OnboardingStep } from "@haulbot/shared";
 import { trackOnce } from "../analytics/gtag";
 import { SiteLayout } from "../components/SiteLayout";
 import { TelegramConnectPanel } from "../components/TelegramConnectPanel";
@@ -22,11 +22,75 @@ const STEP_ORDER: OnboardingStep[] = [
 ];
 
 const STEP_HINTS: Record<string, string> = {
-  account: "Your subscription is active — you're ready for the next step.",
   telegram: "Link Telegram to control dispatch and receive booking updates on the road.",
   relay: "Send your Amazon Relay credentials in Telegram so the agent can sign in and book.",
   dispatch: "Once Relay is linked, set your first campaign in Telegram to start dispatch.",
 };
+
+function accountStepSubtitle(phase: AccountSetupPhase): string {
+  switch (phase) {
+    case "awaiting_subscription":
+      return "Confirming your subscription…";
+    case "provisioning":
+      return "Setting up your dispatch environment…";
+    case "failed":
+      return "Environment setup needs attention";
+    default:
+      return "Setting up your account…";
+  }
+}
+
+function AccountSetupSubsteps({ phase }: { phase: AccountSetupPhase }) {
+  const paymentDone = phase !== "awaiting_subscription";
+  const envDone = phase === "complete";
+  const envFailed = phase === "failed";
+  const envActive = phase === "provisioning";
+
+  return (
+    <ul className="portal__account-substeps">
+      <li
+        className={`portal__account-substep${
+          paymentDone ? " portal__account-substep--done" : " portal__account-substep--active"
+        }`}
+      >
+        <span className="portal__account-substep-marker" aria-hidden="true">
+          {paymentDone ? <CheckIcon /> : <span className="portal__account-spinner" />}
+        </span>
+        <span className="portal__account-substep-label">
+          {paymentDone ? "Payment confirmed" : "Confirming payment"}
+        </span>
+      </li>
+      <li
+        className={`portal__account-substep${
+          envDone
+            ? " portal__account-substep--done"
+            : envFailed
+              ? " portal__account-substep--failed"
+              : envActive
+                ? " portal__account-substep--active"
+                : ""
+        }`}
+      >
+        <span className="portal__account-substep-marker" aria-hidden="true">
+          {envDone ? (
+            <CheckIcon />
+          ) : envFailed ? (
+            "!"
+          ) : (
+            <span className="portal__account-spinner" />
+          )}
+        </span>
+        <span className="portal__account-substep-label">
+          {envDone
+            ? "Dispatch environment ready"
+            : envFailed
+              ? "Environment setup failed"
+              : "Setting up your dispatch environment"}
+        </span>
+      </li>
+    </ul>
+  );
+}
 
 type StepStatus = "done" | "current" | "upcoming";
 
@@ -279,6 +343,7 @@ export function SoloPortalPage() {
   const [billingLoading, setBillingLoading] = useState(false);
   const [billingError, setBillingError] = useState<string | null>(null);
   const [billingLoadFailed, setBillingLoadFailed] = useState(false);
+  const [provisionRetrying, setProvisionRetrying] = useState(false);
 
   const params = new URLSearchParams(window.location.search);
   const checkoutSuccess = params.get("checkout") === "success";
@@ -407,6 +472,24 @@ export function SoloPortalPage() {
     };
   }, [userId]);
 
+  async function retryProvision() {
+    if (!userId) return;
+    setProvisionRetrying(true);
+    try {
+      const res = await fetch("/api/onboarding/retry-provision", {
+        method: "POST",
+        headers: authHeaders(userId),
+      });
+      if (!res.ok) throw new Error("Retry failed");
+      const p = (await res.json()) as DriverProfile;
+      setProfile(p);
+    } catch {
+      /* next poll will refresh */
+    } finally {
+      setProvisionRetrying(false);
+    }
+  }
+
   async function openBillingPortal() {
     if (!userId) return;
     setBillingLoading(true);
@@ -502,6 +585,47 @@ export function SoloPortalPage() {
 
   function renderStepAction(key: string, status: StepStatus) {
     if (status !== "current") return null;
+
+    if (key === "account" && profile) {
+      const phase = profile.accountSetupPhase;
+
+      if (phase === "failed") {
+        return (
+          <div className="portal__stepper-actions portal__stepper-actions--account">
+            <p className="portal__stepper-hint portal__stepper-hint--error">
+              We couldn&apos;t finish setting up your dedicated dispatch environment. Try again, or
+              contact{" "}
+              <a href={`mailto:${LEGAL_ENTITY.supportEmail}`}>{LEGAL_ENTITY.supportEmail}</a> if this
+              keeps happening.
+            </p>
+            <Button variant="primary" onClick={() => void retryProvision()} disabled={provisionRetrying}>
+              {provisionRetrying ? "Retrying…" : "Try again"}
+            </Button>
+          </div>
+        );
+      }
+
+      return (
+        <div className="portal__stepper-actions portal__stepper-actions--account">
+          <AccountSetupSubsteps phase={phase} />
+          {phase === "awaiting_subscription" ? (
+            <p className="portal__stepper-hint">
+              We&apos;re confirming your subscription. This page will update automatically.
+            </p>
+          ) : (
+            <>
+              <p className="portal__stepper-hint">
+                This usually takes 1–3 minutes. Nothing for you to do right now.
+              </p>
+              <p className="portal__stepper-hint portal__stepper-hint--muted">
+                This page updates automatically. You can close this tab — we&apos;ll email you when
+                Step 2 is ready.
+              </p>
+            </>
+          )}
+        </div>
+      );
+    }
 
     if (key === "telegram") {
       return (
@@ -681,6 +805,11 @@ export function SoloPortalPage() {
                   Get started
                 </p>
                 <div className="portal__onboarding-head">
+                  {step === "subscribed" && profile ? (
+                    <p className="portal__onboarding-phase">
+                      Step 1 of {checklist.length} — {accountStepSubtitle(profile.accountSetupPhase)}
+                    </p>
+                  ) : null}
                   <p className="portal__onboarding-meta">
                     {completedSteps} of {checklist.length} complete
                   </p>
@@ -717,8 +846,16 @@ export function SoloPortalPage() {
                           <p className="portal__stepper-status portal__stepper-status--upcoming">Up next</p>
                         ) : null}
                         {item.status === "current" ? (
-                          <div className="portal__stepper-panel">
-                            <p className="portal__stepper-hint">{STEP_HINTS[item.key]}</p>
+                          <div
+                            className={`portal__stepper-panel${
+                              item.key === "account" && profile?.accountSetupPhase === "failed"
+                                ? " portal__stepper-panel--error"
+                                : ""
+                            }`}
+                          >
+                            {item.key !== "account" ? (
+                              <p className="portal__stepper-hint">{STEP_HINTS[item.key]}</p>
+                            ) : null}
                             {renderStepAction(item.key, item.status)}
                           </div>
                         ) : null}

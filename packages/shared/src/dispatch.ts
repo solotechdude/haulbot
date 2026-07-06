@@ -134,10 +134,18 @@ export type OnboardingStep =
   | "relay_ready"
   | "active";
 
+/** Sub-phase within onboarding Step 1 ("Set up your account"). */
+export type AccountSetupPhase =
+  | "awaiting_subscription"
+  | "provisioning"
+  | "failed"
+  | "complete";
+
 export interface DriverProfile {
   userId: string;
   email: string;
   onboardingStep: OnboardingStep;
+  accountSetupPhase: AccountSetupPhase;
   telegramLinked: boolean;
   paused: boolean;
 }

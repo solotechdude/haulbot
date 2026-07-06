@@ -1,4 +1,5 @@
 import { Resend } from "resend";
+import { renderEnvironmentReadyEmail } from "@haulbot/email-templates";
 import { fillMagicLinkEmail } from "@haulbot/email-templates/send";
 
 const DEFAULT_FROM = "Haulbot <login@haulbot.online>";
@@ -29,4 +30,32 @@ export async function sendSignInEmail(to: string, url: string): Promise<void> {
   }
 
   console.log("[email] sign-in email sent to %s (id=%s)", to, data?.id ?? "unknown");
+}
+
+export async function sendEnvironmentReadyEmail(to: string, portalUrl: string): Promise<void> {
+  const apiKey = process.env.RESEND_API_KEY;
+  const from = process.env.EMAIL_FROM || DEFAULT_FROM;
+
+  if (!apiKey) {
+    console.log("[email] RESEND_API_KEY unset — environment-ready link for %s: %s", to, portalUrl);
+    return;
+  }
+
+  const { html, text } = await renderEnvironmentReadyEmail({ portalUrl, driverEmail: to });
+
+  const resend = new Resend(apiKey);
+  const { data, error } = await resend.emails.send({
+    from,
+    to,
+    subject: "Your Haulbot environment is ready",
+    text,
+    html,
+  });
+
+  if (error) {
+    console.error("[email] Resend rejected environment-ready email for %s:", to, error);
+    throw new Error(`Resend send failed: ${error.message ?? "unknown error"}`);
+  }
+
+  console.log("[email] environment-ready email sent to %s (id=%s)", to, data?.id ?? "unknown");
 }

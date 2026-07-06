@@ -1,4 +1,5 @@
 import { getDb, upsertDispatchState } from "../db";
+import { notifyEnvironmentReady } from "../email/notify-environment-ready";
 import { getEnvironmentDriver, type ProvisionedEnvironmentInfo } from "./driver";
 
 async function recordEnvironmentEvent(
@@ -78,6 +79,8 @@ export async function provisionDedicatedEnvironment(userId: string): Promise<voi
       ? `Dedicated environment provisioned (${info.portalEndpoint ?? info.portalArn})`
       : "Dedicated environment provisioned (dev stub)",
   );
+
+  void notifyEnvironmentReady(userId);
 }
 
 /** Unsubscribe path — the Dedicated Environment lives with the subscription. */

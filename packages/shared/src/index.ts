@@ -4,6 +4,7 @@ export type {
   CommitmentStatus,
   DispatchMode,
   DispatchState,
+  AccountSetupPhase,
   DriverProfile,
   HardRules,
   LastCampaignDefaults,

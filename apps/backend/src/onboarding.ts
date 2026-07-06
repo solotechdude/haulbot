@@ -1,5 +1,15 @@
-import type { DriverProfile, OnboardingStep } from "@haulbot/shared";
+import type { AccountSetupPhase, DriverProfile, OnboardingStep } from "@haulbot/shared";
 import { getDispatchState } from "./db";
+
+export function resolveAccountSetupPhase(input: {
+  hasSubscription: boolean;
+  provisionState: string | null | undefined;
+}): AccountSetupPhase {
+  if (!input.hasSubscription) return "awaiting_subscription";
+  if (input.provisionState === "ready") return "complete";
+  if (input.provisionState === "failed") return "failed";
+  return "provisioning";
+}
 
 export function resolveOnboardingStep(input: {
   hasSubscription: boolean;
@@ -32,19 +42,25 @@ export async function getDriverProfile(userId: string): Promise<DriverProfile | 
 
   const telegramLinked = Boolean(telegram && !telegram.devStub && !String(telegram.telegramChatId).startsWith("dev-"));
 
+  const hasSubscription = Boolean(subscription);
+  const provisionState = env?.provisionState ? String(env.provisionState) : null;
+
   const onboardingStep = resolveOnboardingStep({
-    hasSubscription: Boolean(subscription),
-    environmentReady: env?.provisionState === "ready",
+    hasSubscription,
+    environmentReady: provisionState === "ready",
     telegramLinked,
     relay2faPending: Boolean(user.relay2faPending),
     relayReady: Boolean(user.relayReadyAt),
     agentActive: Boolean(dispatch?.heartbeatAt && !dispatch?.paused),
   });
 
+  const accountSetupPhase = resolveAccountSetupPhase({ hasSubscription, provisionState });
+
   return {
     userId,
     email: String(user.email),
     onboardingStep,
+    accountSetupPhase,
     telegramLinked,
     paused: dispatch?.paused ?? false,
   };
