@@ -6,6 +6,10 @@
 #   3. python3 scripts/build-do-deploy-spec.py   → .do/app.deploy.yaml
 #   4. doctl apps update <app-id> --spec .do/app.deploy.yaml --wait
 #
+# Pushes to main auto-deploy when github.deploy_on_push is true.
+# Requires DigitalOcean GitHub App access to solotechdude/haulbot (Settings → Source in DO).
+# Fallback: .github/workflows/deploy-production.yml (needs DIGITALOCEAN_ACCESS_TOKEN in GitHub secrets).
+#
 # DNS (Porkbun / DO):
 #   haulbot.online      → App default ingress (website + /api BFF)
 #   api.haulbot.online  → Same app (backend API + Telegram webhook)
@@ -164,9 +168,10 @@ envs:
 
 services:
   - name: backend
-    git:
-      repo_clone_url: https://github.com/solotechdude/haulbot.git
+    github:
+      repo: solotechdude/haulbot
       branch: main
+      deploy_on_push: true
     build_command: bun install && bun run --filter @haulbot/email-templates export:magic-link
     run_command: bun run --filter @haulbot/backend start:prod
     environment_slug: bun
@@ -180,9 +185,10 @@ services:
       http_path: /health
 
   - name: bot
-    git:
-      repo_clone_url: https://github.com/solotechdude/haulbot.git
+    github:
+      repo: solotechdude/haulbot
       branch: main
+      deploy_on_push: true
     build_command: bun install
     run_command: bun run --filter @haulbot/bot start:prod
     environment_slug: bun
@@ -197,9 +203,10 @@ services:
 
 static_sites:
   - name: website
-    git:
-      repo_clone_url: https://github.com/solotechdude/haulbot.git
+    github:
+      repo: solotechdude/haulbot
       branch: main
+      deploy_on_push: true
     build_command: bun install && bun run --filter @haulbot/website build
     output_dir: apps/website/dist
     catchall_document: index.html
