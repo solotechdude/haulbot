@@ -21,6 +21,7 @@
     "bot:stop": "pkill -f 'haulbot/apps/bot' 2>/dev/null || true; pkill -f '@haulbot/bot' 2>/dev/null || true",
     "dev": "bun run dev:backend & bun run dev:website",
     "seed:dev": "bun run --filter @haulbot/backend seed:dev",
+    "seed:user": "bun run --filter @haulbot/backend seed:user",
     "set:campaign": "bun run --filter @haulbot/backend set:campaign",
     "fix:booking-route": "bun run --filter @haulbot/backend fix:booking-route",
     "reconcile:stripe": "bun run --filter @haulbot/backend reconcile:stripe",
