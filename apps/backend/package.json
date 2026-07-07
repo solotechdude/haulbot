@@ -8,6 +8,7 @@
     "start": "bun --env-file=../../.env.development.local --env-file=../../.env run src/index.ts",
     "start:prod": "bun run src/index.ts",
     "seed:dev": "bun --env-file=../../.env.development.local --env-file=../../.env run scripts/seed-dev-user.ts",
+    "seed:user": "bun --env-file=../../.env.development.local --env-file=../../.env run scripts/seed-user-by-email.ts",
     "set:campaign": "bun --env-file=../../.env.development.local --env-file=../../.env run scripts/set-campaign-dev.ts",
     "fix:booking-route": "bun --env-file=../../.env.development.local --env-file=../../.env run scripts/fix-booking-route.ts",
     "reconcile:stripe": "bun --env-file=../../.env.development.local --env-file=../../.env run scripts/reconcile-stripe-user.ts",
